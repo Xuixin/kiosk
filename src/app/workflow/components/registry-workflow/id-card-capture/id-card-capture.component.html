@@ -1,0 +1,105 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>ถ่ายภาพบัตรประชาชน</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="close()">ปิดหน้าต่าง</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div
+    class="relative flex h-full w-full items-center justify-center overflow-hidden bg-black"
+  >
+    <!-- Hidden Video Element -->
+    <video #videoElement autoplay playsinline muted class="hidden"></video>
+
+    <!-- Camera Canvas -->
+    <canvas
+      #cameraCanvas
+      [class.transform]="isFrontCamera"
+      [class.scale-x-[-1]]="isFrontCamera"
+      [style.display]="
+        !isCameraLoading && !errorMessage && !capturedImage ? 'block' : 'none'
+      "
+      class="h-full w-full object-cover"
+    ></canvas>
+
+    <!-- Loading State -->
+    <div
+      *ngIf="isCameraLoading"
+      class="flex h-full flex-col items-center justify-center text-white"
+    >
+      <ion-spinner name="crescent" class="h-12 w-12"></ion-spinner>
+      <p class="mt-4 text-lg">กำลังเปิดกล้อง...</p>
+    </div>
+
+    <!-- Error Message -->
+    <div
+      *ngIf="errorMessage"
+      class="m-4 rounded-lg bg-red-500 bg-opacity-10 p-4 text-center text-red-500"
+    >
+      {{ errorMessage }}
+    </div>
+
+    <!-- Camera Controls (Live Camera) -->
+    <div
+      class="absolute bottom-8 left-0 right-0 flex items-center justify-center gap-4 px-4"
+      *ngIf="!isCameraLoading && !errorMessage && !capturedImage"
+    >
+      <!-- Switch Camera Button -->
+      <button
+        class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white bg-opacity-90 text-2xl transition-transform duration-300 hover:scale-110 active:scale-95"
+        (click)="switchCamera()"
+        *ngIf="cameras.length > 1"
+      >
+        🔄
+      </button>
+
+      <!-- Capture Button -->
+      <button
+        class="h-[70px] w-[70px] cursor-pointer rounded-full border-[5px] border-blue-500 bg-white transition-transform duration-300 hover:scale-110 active:scale-95"
+        (click)="capturePhoto()"
+      ></button>
+    </div>
+
+    <!-- Preview Image -->
+    <div
+      *ngIf="capturedImage"
+      class="relative flex h-full w-full items-center justify-center"
+    >
+      <img
+        [src]="capturedImage"
+        class="max-h-full max-w-full object-contain"
+        alt="Captured ID Card"
+      />
+
+      <!-- Retake Button -->
+      <div
+        class="absolute bottom-8 left-0 right-0 flex justify-center gap-4 px-4"
+      >
+        <button
+          class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-white bg-opacity-90 text-2xl transition-transform duration-300 hover:scale-110 active:scale-95"
+          (click)="retakePhoto()"
+        >
+          🔄
+        </button>
+      </div>
+    </div>
+  </div>
+</ion-content>
+
+<ion-footer>
+  <ion-toolbar>
+    <div class="mx-auto w-full max-w-2xl px-4 py-2">
+      <ion-button
+        expand="block"
+        (click)="saveAndNext()"
+        [disabled]="!capturedImage"
+        class="w-full"
+      >
+        ใช้รูปนี้ และถัดไป
+      </ion-button>
+    </div>
+  </ion-toolbar>
+</ion-footer>
