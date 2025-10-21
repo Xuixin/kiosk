@@ -139,26 +139,19 @@
     <div
       class="flex w-full flex-wrap justify-center gap-2 sm:w-auto sm:justify-end sm:gap-4"
     >
-      <button
-        class="rounded-lg border-2 border-gray-400 px-3 py-2 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 sm:px-6 sm:text-sm"
-        (click)="checkStorageStatus()"
-      >
-        📊 Check
-      </button>
-
-      <button
-        class="rounded-lg border-2 border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50 sm:px-8 sm:py-3 sm:text-base"
-        (click)="cancelAndClose()"
-      >
-        กลับ
-      </button>
-      <button
-        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400 sm:px-8 sm:py-3 sm:text-base"
-        (click)="submitRegistration()"
+      <p-button
+        label="กลับ"
+        severity="secondary"
+        size="small"
+        (onClick)="cancelAndClose()"
+      ></p-button>
+      <p-button
+        label="บันทึก"
+        severity="primary"
+        size="small"
+        (onClick)="submitRegistration()"
         [disabled]="!isComplete()"
-      >
-        บันทึก
-      </button>
+      ></p-button>
     </div>
   </div>
 </div>

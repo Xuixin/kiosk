@@ -11,15 +11,18 @@ import {
   signal,
 } from "@angular/core";
 import { IonicModule } from "@ionic/angular";
+import { ButtonModule } from "primeng/button";
 
 import { BaseFlowController } from "../../../base-flow-controller.component";
 import { RegistryContextHelper } from "../../../helpers/registry-context.helper";
 import { RegistryService } from "../../../services/registry.service";
+import type { RegistryTransaction } from "src/app/workflow/services/registry.service";
+import { UUIDUtils } from "src/app/utils";
 
 @Component({
   selector: "app-registry-walkin-summary",
   standalone: true,
-  imports: [CommonModule, IonicModule],
+  imports: [CommonModule, IonicModule, ButtonModule],
   styles: [
     `
       ion-button.back-button {
@@ -307,27 +310,34 @@ export class RegistryWalkinSummaryComponent
       `;
       document.body.appendChild(loadingAlert);
 
+      const cid = UUIDUtils.generateTxnId();
+
+      const data: RegistryTransaction = {
+        id: cid,
+        name: ctx.user.name,
+        id_card_base64: ctx.user.id_card_base64,
+        student_number: ctx.user.student_number,
+        register_type: ctx.user.register_type,
+        door_permission: ctx.user.door_permission,
+        status: "PENDING",
+        client_created_at: new Date().toString(),
+      };
+
       // Submit to storage
-      const result = await this.registryService.submitRegistration(ctx);
+      const result = await this.registryService.submitRegistration(data);
+
+      console.log("[RegistrySummary] Submit result:", result);
 
       // Remove loading alert
       document.body.removeChild(loadingAlert);
 
-      if (result.success) {
-        // Show success message
-        const fullName = result.transaction?.user.name || "ไม่ระบุ";
-        alert(
-          `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction?.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction?.status}`
-        );
+      const fullName = result.transaction?.user.name || "ไม่ระบุ";
+      alert(
+        `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction?.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction?.status}`
+      );
 
-        // Close workflow
-        await this.closeWorkflow();
-      } else {
-        // Show error message
-        alert(
-          `❌ เกิดข้อผิดพลาดในการบันทึก:\n\n${result.error}\n\nกรุณาลองใหม่อีกครั้ง`
-        );
-      }
+      // Close workflow
+      await this.closeWorkflow();
     } catch (error) {
       console.error("Error in submitRegistration:", error);
       alert(
@@ -341,29 +351,6 @@ export class RegistryWalkinSummaryComponent
   async cancelAndClose(): Promise<void> {
     if (confirm("คุณต้องการกลับหน้าแรกหรือไม่?")) {
       await this.closeWorkflow();
-    }
-  }
-
-  /**
-   * Debug method to check storage connectivity and show stored data
-   */
-  async checkStorageStatus(): Promise<void> {
-    try {
-      const registrations = await this.registryService.getRegistrations();
-      const storageReady = this.registryService.isStorageReady();
-
-      alert(
-        `📊 Storage Status:\n\nTotal Registrations: ${
-          registrations.length
-        }\nStorage Ready: ${storageReady ? "Yes" : "No"}`
-      );
-    } catch (error) {
-      console.error("Error checking storage status:", error);
-      alert(
-        `❌ Error checking storage: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
     }
   }
 }

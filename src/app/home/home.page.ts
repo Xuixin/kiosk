@@ -1,6 +1,5 @@
-import { Component, computed, effect, signal } from "@angular/core";
+import { Component } from "@angular/core";
 import { FlowControllerService } from "../flow-services/flow-controller.service";
-import { Flow } from "../types/flow.types";
 import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
@@ -13,10 +12,23 @@ import {
   standalone: false,
 })
 export class HomePage {
-startRegistryWorkflow() {
-throw new Error('Method not implemented.');
-}
-  constructor() {
+  currentDate = new Date();
+  currentTime = new Date();
+
+  constructor(private readonly flowController: FlowControllerService) {
     console.log("HomePage constructor");
+
+    setInterval(() => {
+      this.currentTime = new Date();
+    }, 60000);
+  }
+
+  async startRegistryWorkflow(): Promise<void> {
+    console.log("Starting Registry Workflow...");
+    await this.flowController.startWorkflow(
+      REGISTRY_WALKIN_WORKFLOW,
+      undefined,
+      REGISTRY_INITIAL_CONTEXT
+    );
   }
 }

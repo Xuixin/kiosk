@@ -10,6 +10,7 @@ import {
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { IonicModule } from "@ionic/angular";
+import { ButtonModule } from "primeng/button";
 import { BaseFlowController } from "../../../base-flow-controller.component";
 import { RegistryContextHelper } from "../../../helpers/registry-context.helper";
 import { CameraHandlerService } from "../../../services/camera-handler.service";
@@ -18,7 +19,7 @@ import { CanvasService } from "../../../services/canvas.service";
 @Component({
   selector: "app-id-card-capture",
   standalone: true,
-  imports: [CommonModule, FormsModule, IonicModule],
+  imports: [CommonModule, FormsModule, IonicModule, ButtonModule],
   templateUrl: "./id-card-capture.component.html",
 })
 export class IdCardCaptureComponent

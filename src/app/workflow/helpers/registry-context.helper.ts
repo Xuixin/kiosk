@@ -16,6 +16,17 @@ export interface RegistryContext {
   register_type: string;
 }
 
+export interface RegistryTransaction {
+  id: string;
+  name: string;
+  student_number: string;
+  register_type: string;
+  door_permission: string[];
+  status: "PENDING" | "IN" | "OUT";
+  client_created_at: string;
+  client_updated_at: string;
+}
+
 export interface FileData {
   file_blob: Blob;
   file_type: string;
@@ -121,21 +132,21 @@ export class RegistryContextHelper {
     ctx: RegistryContext,
     category: string
   ): FileData | null {
-    if (category === 'id-card' && ctx.user?.id_card_base64) {
+    if (category === "id-card" && ctx.user?.id_card_base64) {
       // Convert base64 back to Blob
-      const base64Data = ctx.user.id_card_base64.split(',')[1];
+      const base64Data = ctx.user.id_card_base64.split(",")[1];
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
+      const blob = new Blob([byteArray], { type: "image/jpeg" });
 
       return {
         file_blob: blob,
-        file_type: 'image/jpeg',
-        file_category: 'id-card',
+        file_type: "image/jpeg",
+        file_category: "id-card",
       };
     }
     return null;
@@ -145,14 +156,14 @@ export class RegistryContextHelper {
    * ดึงชื่อเต็มของผู้ใช้
    */
   static getUserFullName(ctx: RegistryContext): string {
-    return ctx.user?.name || '';
+    return ctx.user?.name || "";
   }
 
   /**
    * ดึงหมายเลขบัตรประชาชน/รหัสนักศึกษา
    */
   static getUserStudentNumber(ctx: RegistryContext): string {
-    return ctx.user?.student_number || '';
+    return ctx.user?.student_number || "";
   }
 
   /**
@@ -165,11 +176,11 @@ export class RegistryContextHelper {
 
     // Map door IDs to names
     const doorMap: Record<string, string> = {
-      '1': 'ประตู 1',
-      '2': 'ประตู 2',
-      '3': 'ประตู 3',
-      '4': 'ประตู 4',
-      '5': 'ประตู 5',
+      "1": "ประตู 1",
+      "2": "ประตู 2",
+      "3": "ประตู 3",
+      "4": "ประตู 4",
+      "5": "ประตู 5",
     };
 
     return ctx.door_permission.map((id) => doorMap[id] || `ประตู ${id}`);
@@ -181,13 +192,13 @@ export class RegistryContextHelper {
   static createInitialContext(): RegistryContext {
     return {
       user: {
-        name: '',
-        student_number: '',
-        register_type: 'WALK_IN',
-        id_card_base64: '',
+        name: "",
+        student_number: "",
+        register_type: "WALK_IN",
+        id_card_base64: "",
       },
       door_permission: [],
-      register_type: 'WALK_IN',
+      register_type: "WALK_IN",
     };
   }
 }

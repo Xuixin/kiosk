@@ -12,6 +12,7 @@ import { MessageService } from "primeng/api";
 import { ConfirmationService } from "primeng/api";
 import { providePrimeNG } from "primeng/config";
 import { initDatabase, DatabaseService } from "./core/Database/rxdb.service";
+import Aura from "@primeng/themes/aura";
 
 @NgModule({
   declarations: [AppComponent],
@@ -37,10 +38,16 @@ import { initDatabase, DatabaseService } from "./core/Database/rxdb.service";
     // * primeng
     providePrimeNG({
       theme: {
-        preset: "aura",
+        preset: Aura,
         options: { darkModeSelector: false },
       },
       ripple: true,
+      zIndex: {
+        modal: 9000, // dialog, sidebar
+        overlay: 9500, // dropdown, overlaypanel
+        menu: 10000, // overlay menus
+        tooltip: 11000, // tooltip
+      },
     }),
   ],
   bootstrap: [AppComponent],
