@@ -1,16 +1,16 @@
-import { Capacitor } from "@capacitor/core";
-import { getRxStorageSQLiteTrial } from "rxdb/plugins/storage-sqlite";
-import { getSQLiteBasicsCapacitor } from "rxdb/plugins/storage-sqlite";
-import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
-import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { Capacitor } from '@capacitor/core';
+import { getRxStorageSQLiteTrial } from 'rxdb/plugins/storage-sqlite';
+import { getSQLiteBasicsCapacitor } from 'rxdb/plugins/storage-sqlite';
+import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
+import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
 
 export const environment = {
   production: false,
-  apiUrl: "https://api.yourdomain.com",
-  wsUrl: "wss://api.yourdomain.com",
-  databaseName: "kiosk_prod",
+  apiUrl: 'https://api.yourdomain.com',
+  wsUrl: 'wss://api.yourdomain.com',
+  databaseName: 'kiosk_prod',
   multiInstance: false,
   addRxDBPlugins() {},
   getRxStorage() {
