@@ -165,7 +165,6 @@ export interface ReplicationDocument {
   client_updated_at: string;
   server_created_at?: string;
   server_updated_at?: string;
-  deleted: boolean;
 }
 
 /**

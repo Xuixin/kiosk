@@ -5,7 +5,6 @@ import { DoorPreferenceService } from './services/door-preference.service';
 import { DoorCheckpointService } from './services/door-checkpoint.service';
 import { ModalController } from '@ionic/angular';
 import { DoorSelectionModalComponent } from './components/door-selection-modal/door-selection-modal.component';
-import { initDatabase } from './core/Database/rxdb.service';
 
 import 'zone.js/plugins/zone-patch-rxjs';
 @Component({
@@ -24,7 +23,6 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor() {}
 
   async ngOnInit() {
-    console.log('🚀 App component initialized');
     await this.initializeDoorSystem();
   }
 
@@ -37,14 +35,11 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async initializeDoorSystem() {
     try {
-      console.log('🚪 Initializing door system...');
-
       // Check if door-id exists in preferences
       const hasDoorId = await this.doorPreferenceService.hasDoorId();
 
       if (hasDoorId) {
         // Case 2: Existing door-id
-        console.log('✅ Door ID found in preferences');
         const doorId = await this.doorPreferenceService.getDoorId();
         if (doorId) {
           await this.initializeDatabase(doorId);
@@ -93,15 +88,11 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async initializeDatabase(doorId: string) {
     try {
-      console.log('🗄️ Initializing database for door:', doorId);
-
       // Initialize database with door ID
-      await initDatabase(this.injector, doorId);
+      await DatabaseService.initDatabase(this.injector, doorId);
 
       // Initialize door checkpoint service after database is ready
       this.doorCheckpointService.initialize();
-
-      console.log('✅ Database initialized successfully for door:', doorId);
     } catch (error) {
       console.error('❌ Error initializing database:', error);
     }

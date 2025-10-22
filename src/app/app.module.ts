@@ -56,7 +56,6 @@ import { FormsModule } from '@angular/forms';
     {
       provide: APP_INITIALIZER,
       useFactory: (preloadService: WorkflowPreloadService) => () => {
-        console.log('🚀 [AppModule] Starting workflow component preload...');
         return preloadService.preloadWorkflowComponents();
       },
       multi: true,

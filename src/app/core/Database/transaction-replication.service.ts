@@ -1,69 +1,63 @@
-// transaction-replication.service.ts
 import { Injectable, inject } from '@angular/core';
-import { replicateGraphQL } from 'rxdb/plugins/replication-graphql';
-import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
-import { RxTxnCollection, RxTxnDocument } from './RxDB.D';
+import { RxTxnCollection } from './RxDB.D';
 import { RxTxnDocumentType } from '../schema/txn.schema';
-import { environment } from 'src/environments/environment';
 import {
   PUSH_TRANSACTION_MUTATION,
   PULL_TRANSACTION_QUERY,
   STREAM_TRANSACTION_SUBSCRIPTION,
 } from './query-builder/txn-query-builder';
 import { DoorPreferenceService } from '../../services/door-preference.service';
+import { BaseReplicationService } from './base-replication.service';
+import { BaseReplicationConfig } from './types/replication.types';
+import {
+  createPullQueryVariables,
+  createPushMutationVariables,
+  extractReplicationData,
+  filterByDoorPermission,
+  transformDocumentForPull,
+} from './utils/replication.utils';
+import { createServiceLogger } from './utils/logging.utils';
 
 @Injectable({
   providedIn: 'root',
 })
-export class TransactionReplicationService {
-  public replicationState?: RxGraphQLReplicationState<RxTxnDocumentType, any>;
-  private graphqlEndpoint: string = environment.apiUrl;
-  private graphqlWsEndpoint: string = environment.wsUrl;
+export class TransactionReplicationService extends BaseReplicationService<RxTxnDocumentType> {
   private doorPreferenceService = inject(DoorPreferenceService);
   private doorId: string | null = null;
+  protected readonly logger = createServiceLogger(
+    'TransactionReplicationService',
+  );
 
   /**
-   * เริ่มต้น GraphQL Replication
+   * Get replication configuration for transactions
    */
-  async setupReplication(
-    collection: RxTxnCollection,
-  ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any>> {
-    console.log('Setting up GraphQL replication...');
-
-    // Get door ID for filtering
-    this.doorId = await this.doorPreferenceService.getDoorId();
-    console.log('🚪 Current door ID for replication:', this.doorId);
-
-    this.replicationState = replicateGraphQL<RxTxnDocumentType, any>({
-      collection,
+  protected getReplicationConfig(): BaseReplicationConfig {
+    return {
       replicationIdentifier: 'txn-graphql-replication',
-      url: {
-        http: this.graphqlEndpoint,
-        ws: this.graphqlWsEndpoint,
-      },
+      url: this.configService.getReplicationConfig().url,
+      batchSize: 5,
+      retryTime: this.configService.getReplicationConfig().retryTime,
+      live: true,
+      autoStart: true,
+      waitForLeadership: true,
+      headers: this.configService.getReplicationConfig().headers,
 
       pull: {
-        batchSize: 5,
         queryBuilder: (checkpoint, limit) => {
-          console.log('🔵 Pull Query - checkpoint:', checkpoint);
-
+          this.logger.debug('pullQueryBuilder', 'Building pull query', {
+            checkpoint,
+            limit,
+          });
           return {
             query: PULL_TRANSACTION_QUERY,
-            variables: {
-              input: {
-                checkpoint: {
-                  id: checkpoint?.id || '',
-                  server_updated_at: checkpoint?.server_updated_at || '0',
-                },
-                limit: limit || 5,
-              },
-            },
+            variables: createPullQueryVariables(checkpoint, limit),
           };
         },
 
         streamQueryBuilder: (headers) => {
-          console.log('🔄 Stream Query - headers:', headers);
-
+          this.logger.debug('streamQueryBuilder', 'Building stream query', {
+            headers,
+          });
           return {
             query: STREAM_TRANSACTION_SUBSCRIPTION,
             variables: {},
@@ -71,22 +65,16 @@ export class TransactionReplicationService {
         },
 
         responseModifier: (plainResponse, requestCheckpoint) => {
-          console.log('🟢 Full Response:', plainResponse);
+          const { documents, checkpoint } = extractReplicationData(
+            plainResponse,
+            'pullTransaction',
+            {
+              service: 'TransactionReplication',
+              operation: 'responseModifier',
+            },
+          );
 
-          const pullData =
-            plainResponse.pullTransaction ||
-            plainResponse.streamTransaction2 ||
-            plainResponse;
-          const documents = pullData.documents || [];
-          const checkpoint = pullData.checkpoint;
-
-          console.log('📊 Pull Summary:', {
-            documentsCount: documents.length,
-            checkpoint: checkpoint,
-            requestCheckpoint: requestCheckpoint,
-          });
-
-          // ✅ Return ข้อมูลจริง
+          // ✅ ส่งข้อมูลครบทุก doc (ไม่ filter) เพื่อ preserve pagination
           return {
             documents: documents,
             checkpoint: checkpoint,
@@ -94,68 +82,50 @@ export class TransactionReplicationService {
         },
 
         modifier: (doc) => {
-          // For now, we'll let the server handle filtering
-          // The client will receive all transactions and filter them locally
-          console.log('🔄 Processing transaction:', doc.id, doc.status);
+          // ✅ ถ้า status = 'OUT' ให้ mark เป็น deleted
+          if (doc.status === 'OUT') {
+            return {
+              ...doc,
+              _deleted: true, // RxDB จะไม่เก็บ doc นี้ แต่จะนับเป็น 1 doc ใน batch
+            };
+          }
 
-          let newDoc = {
-            ...doc,
+          // Check door permissions for IN status documents
+          if (this.doorId) {
+            const permissions = Array.isArray(doc.door_permission)
+              ? doc.door_permission
+              : doc.door_permission?.split(',').map((p: string) => p.trim()) ||
+                [];
+
+            const hasPermission = permissions.includes(this.doorId);
+
+            if (!hasPermission) {
+              return {
+                ...doc,
+                _deleted: true, // RxDB จะไม่เก็บ doc นี้ แต่จะนับเป็น 1 doc ใน batch
+              };
+            }
+          }
+
+          // ✅ ลบ deleted field ออกจาก document (backend ส่งมาแต่เราไม่ต้องการ)
+          const { deleted, ...docWithoutDeleted } = doc;
+
+          // Transform door permissions and return valid document
+          return {
+            ...docWithoutDeleted,
             door_permission:
               typeof doc.door_permission === 'string'
                 ? doc.door_permission.split(',').map((s: any) => s.trim())
                 : doc.door_permission,
           };
-
-          console.log('🚪 Current door ID:', this.doorId);
-          console.log('🚪 Door permissions:', newDoc.door_permission);
-
-          // Filter out transactions that don't belong to current door
-          if (
-            doc.status === 'OUT' ||
-            !this.doorId ||
-            !newDoc.door_permission.includes(this.doorId)
-          ) {
-            console.log('❌ Filtering out transaction:', doc.id);
-            newDoc._deleted = true;
-          } else {
-            console.log('✅ Keeping transaction:', doc.id);
-          }
-
-          return newDoc;
         },
       },
 
       push: {
         queryBuilder: (docs) => {
-          const writeRows = docs.map((docRow) => {
-            const doc = docRow.newDocumentState;
-            return {
-              newDocumentState: {
-                id: doc.id,
-                name: doc.name,
-                id_card_base64: doc.id_card_base64,
-                student_number: doc.student_number,
-                register_type: doc.register_type,
-                door_permission: Array.isArray(doc.door_permission)
-                  ? doc.door_permission.join(',')
-                  : doc.door_permission,
-                status: doc.status,
-                client_created_at:
-                  doc.client_created_at || Date.now().toString(),
-                client_updated_at:
-                  doc.client_updated_at || Date.now().toString(),
-                server_created_at: doc.server_created_at,
-                server_updated_at: doc.server_updated_at,
-                deleted: docRow.assumedMasterState === null,
-              },
-            };
-          });
-
           return {
             query: PUSH_TRANSACTION_MUTATION,
-            variables: {
-              writeRows,
-            },
+            variables: createPushMutationVariables(docs),
           };
         },
 
@@ -165,43 +135,68 @@ export class TransactionReplicationService {
           return doc;
         },
       },
-
-      live: true,
-      retryTime: 60000,
-      autoStart: true,
-      waitForLeadership: true,
-
-      headers: {
-        // 'Authorization': 'Bearer YOUR_TOKEN',
-      },
-    });
-
-    this.replicationState.error$.subscribe((error) => {
-      console.error('Replication error:', error);
-    });
-
-    // เพิ่ม logging สำหรับ pull events
-    this.replicationState.received$.subscribe((received) => {
-      console.log('Replication received:', received);
-    });
-
-    this.replicationState.sent$.subscribe((sent) => {
-      console.log('Replication sent:', sent);
-    });
-
-    await this.replicationState.awaitInitialReplication();
-    console.log('Initial replication completed');
-
-    return this.replicationState;
+    };
   }
 
   /**
-   * หยุด replication
+   * Get collection name for logging
    */
-  async stopReplication() {
-    if (this.replicationState) {
-      await this.replicationState.cancel();
-      console.log('Replication stopped');
+  protected getCollectionName(): string {
+    return 'transaction';
+  }
+
+  /**
+   * Setup replication with door ID filtering
+   */
+  async setupReplication(collection: any): Promise<any> {
+    // Get door ID for filtering
+    this.doorId = await this.doorPreferenceService.getDoorId();
+    this.logger.info(
+      'setupReplication',
+      'Setting up replication with door ID',
+      { doorId: this.doorId },
+    );
+
+    return super.setupReplication(collection);
+  }
+
+  /**
+   * Determine if a document should be kept based on door permissions
+   */
+  private shouldKeepDocument(doc: any): boolean {
+    // ✅ Filter 1: Only keep IN status
+    if (doc.status !== 'IN') {
+      this.logger.debug('shouldKeepDocument', 'Rejecting: not IN status', {
+        id: doc.id,
+        status: doc.status,
+      });
+      return false;
     }
+
+    // ✅ Filter 2: Must have door permission AND doorId must be set
+    if (!this.doorId) {
+      this.logger.debug('shouldKeepDocument', 'Rejecting: no door ID set', {
+        id: doc.id,
+      });
+      return false;
+    }
+
+    // Check door permissions
+    const permissions = Array.isArray(doc.door_permission)
+      ? doc.door_permission
+      : doc.door_permission?.split(',').map((p: string) => p.trim()) || [];
+
+    const hasPermission = permissions.includes(this.doorId);
+
+    if (!hasPermission) {
+      this.logger.debug('shouldKeepDocument', 'Rejecting: no door permission', {
+        id: doc.id,
+        doorId: this.doorId,
+        permissions,
+      });
+    }
+
+    // ✅ Both conditions must be true: IN status AND has door permission
+    return hasPermission;
   }
 }

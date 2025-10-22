@@ -50,8 +50,6 @@ export class HomePage implements OnInit, OnDestroy {
   private timeInterval?: any;
 
   constructor() {
-    console.log('HomePage constructor');
-
     this.timeInterval = setInterval(() => {
       this.currentTime = new Date();
       this.cdr.detectChanges();
@@ -59,11 +57,12 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    console.log('HomePage initialized with reactive signals');
-    console.log('Initial transactions:', this.transactions().length);
-    console.log('Initial stats:', this.stats());
-    this.loadCurrentDoorName();
-    console.log('Current door name:', this.recentTransactions());
+    // Wait for database to be ready before loading door name
+    this.databaseService.initState$.subscribe((state) => {
+      if (state === 'ready') {
+        this.loadCurrentDoorName();
+      }
+    });
   }
 
   ngOnDestroy() {
@@ -79,13 +78,6 @@ export class HomePage implements OnInit, OnDestroy {
     try {
       const doorId = await this.doorPreferenceService.getDoorId();
       if (doorId) {
-        // Check if database is ready
-        if (!this.databaseService.isReady) {
-          console.warn('Database not ready, using fallback door name');
-          this.currentDoorName.set(`ประตู ${doorId}`);
-          return;
-        }
-
         // Try to get door name from database
         const doorDoc = await this.databaseService.db.door
           .findOne({

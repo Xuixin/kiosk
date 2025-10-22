@@ -7,7 +7,7 @@ import {
 export const DOOR_SCHEMA_LITERAL = {
   title: 'Door',
   description: 'Door schema for access control',
-  version: 0,
+  version: 0, // Increment version to trigger migration
   primaryKey: 'id',
   keyCompression: false,
   type: 'object',
@@ -19,10 +19,9 @@ export const DOOR_SCHEMA_LITERAL = {
     client_updated_at: { type: 'string', maxLength: 20 },
     server_created_at: { type: 'string', maxLength: 20 },
     server_updated_at: { type: 'string', maxLength: 20 },
-    deleted: { type: 'boolean' },
   },
 
-  required: ['id', 'name', 'checkpoint', 'client_created_at', 'deleted'],
+  required: ['id', 'name', 'checkpoint', 'client_created_at'],
 };
 
 export const doorSchema = toTypedRxJsonSchema(DOOR_SCHEMA_LITERAL);
