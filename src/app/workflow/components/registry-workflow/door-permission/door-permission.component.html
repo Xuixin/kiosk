@@ -62,8 +62,37 @@
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div
+        *ngIf="loading()"
+        class="flex flex-col items-center justify-center py-12"
+      >
+        <div class="mb-4 text-4xl">⏳</div>
+        <div class="text-lg font-medium text-gray-700">
+          กำลังโหลดข้อมูลประตู...
+        </div>
+        <div class="mt-2 text-sm text-gray-500">กรุณารอสักครู่</div>
+      </div>
+
+      <!-- Error State -->
+      <div
+        *ngIf="loadError() && !loading()"
+        class="flex flex-col items-center justify-center py-12"
+      >
+        <div class="mb-4 text-4xl">⚠️</div>
+        <div class="text-lg font-medium text-red-700">{{ loadError() }}</div>
+        <div class="mt-4">
+          <p-button
+            label="ลองใหม่"
+            severity="secondary"
+            size="small"
+            (onClick)="retryLoadDoors()"
+          ></p-button>
+        </div>
+      </div>
+
       <!-- Door List -->
-      <div class="space-y-3 sm:space-y-4">
+      <div *ngIf="!loading() && !loadError()" class="space-y-3 sm:space-y-4">
         <div
           *ngFor="let door of doors(); let i = index"
           class="group relative cursor-pointer overflow-hidden rounded-lg border-2 bg-white shadow-sm transition-all duration-200 hover:shadow-md"
@@ -137,7 +166,7 @@
 
       <!-- Empty State -->
       <div
-        *ngIf="doors().length === 0"
+        *ngIf="doors().length === 0 && !loading() && !loadError()"
         class="mt-8 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white p-8 text-center sm:p-12"
       >
         <div class="mb-4 text-6xl opacity-50">🚪</div>
@@ -173,7 +202,7 @@
         severity="primary"
         size="small"
         (onClick)="saveAndClose()"
-        [disabled]="!hasSelection()"
+        [disabled]="!hasSelection() || loading() || loadError()"
       ></p-button>
     </div>
   </div>

@@ -1,6 +1,6 @@
-import type { RxDocument, RxCollection, RxDatabase } from "rxdb";
-import { RxTxnDocumentType } from "../schema/txn.schema";
-import { Signal } from "@angular/core";
+import type { RxDocument, RxCollection, RxDatabase } from 'rxdb';
+import { RxTxnDocumentType } from '../schema/txn.schema';
+import { Signal } from '@angular/core';
 
 // orm method
 type RxTxnMethods = {
