@@ -1,13 +1,20 @@
-import { Component } from "@angular/core";
-import { RouterOutlet } from "@angular/router";
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { DatabaseService } from './core/Database/rxdb.service';
 
-import "zone.js/plugins/zone-patch-rxjs";
+import 'zone.js/plugins/zone-patch-rxjs';
 @Component({
-  selector: "app-root",
+  selector: 'app-root',
   standalone: false,
-  templateUrl: "app.component.html",
-  styleUrls: ["app.component.scss"],
+  templateUrl: 'app.component.html',
+  styleUrls: ['app.component.scss'],
 })
-export class AppComponent {
-  constructor() {}
+export class AppComponent implements OnInit, OnDestroy {
+  constructor(private databaseService: DatabaseService) {}
+
+  async ngOnInit() {}
+
+  ngOnDestroy() {
+    this.databaseService.stopReplication();
+  }
 }

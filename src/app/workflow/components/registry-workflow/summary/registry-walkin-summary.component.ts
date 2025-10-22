@@ -1,4 +1,4 @@
-import { CommonModule } from "@angular/common";
+import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -9,18 +9,18 @@ import {
   OnDestroy,
   OnInit,
   signal,
-} from "@angular/core";
-import { IonicModule } from "@ionic/angular";
-import { ButtonModule } from "primeng/button";
+} from '@angular/core';
+import { IonicModule } from '@ionic/angular';
+import { ButtonModule } from 'primeng/button';
 
-import { BaseFlowController } from "../../../base-flow-controller.component";
-import { RegistryContextHelper } from "../../../helpers/registry-context.helper";
-import { RegistryService } from "../../../services/registry.service";
-import type { RegistryTransaction } from "src/app/workflow/services/registry.service";
-import { UUIDUtils } from "src/app/utils";
+import { BaseFlowController } from '../../../base-flow-controller.component';
+import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
+import { RegistryService } from '../../../services/registry.service';
+import type { RegistryTransaction } from 'src/app/workflow/services/registry.service';
+import { UUIDUtils } from 'src/app/utils';
 
 @Component({
-  selector: "app-registry-walkin-summary",
+  selector: 'app-registry-walkin-summary',
   standalone: true,
   imports: [CommonModule, IonicModule, ButtonModule],
   styles: [
@@ -50,7 +50,7 @@ import { UUIDUtils } from "src/app/utils";
       }
     `,
   ],
-  templateUrl: "./registry-walkin-summary.component.html",
+  templateUrl: './registry-walkin-summary.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RegistryWalkinSummaryComponent
@@ -59,7 +59,7 @@ export class RegistryWalkinSummaryComponent
 {
   @Input() override data: Record<string, any> = {};
 
-  currentDateTime: string = "";
+  currentDateTime: string = '';
   isInitialLoad: boolean = true;
 
   // Services
@@ -67,8 +67,8 @@ export class RegistryWalkinSummaryComponent
 
   // Cache for Object URLs with Blob tracking
   private cachedUrls = new Map<string, { url: string; blob: Blob }>();
-  private currentImageUrl = "";
-  private lastContextHash = "";
+  private currentImageUrl = '';
+  private lastContextHash = '';
 
   constructor() {
     super();
@@ -78,7 +78,7 @@ export class RegistryWalkinSummaryComponent
     // Use effect to watch context changes efficiently
     effect(() => {
       const ctx = this.executionContext();
-      console.log("[RegistrySummary] Effect triggered - Context changed:", {
+      console.log('[RegistrySummary] Effect triggered - Context changed:', {
         ctx,
       });
 
@@ -90,11 +90,11 @@ export class RegistryWalkinSummaryComponent
 
   updateDateTime() {
     const now = new Date();
-    const day = String(now.getDate()).padStart(2, "0");
-    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
-    const hours = String(now.getHours()).padStart(2, "0");
-    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
     this.currentDateTime = `${day}/${month}/${year} ${hours}:${minutes}`;
   }
 
@@ -143,9 +143,9 @@ export class RegistryWalkinSummaryComponent
    */
   private updateImageUrl(): void {
     // Create a simple hash of the context to detect changes
-    const contextHash = this.registryContext?.user?.id_card_base64 || "";
+    const contextHash = this.registryContext?.user?.id_card_base64 || '';
 
-    console.log("[RegistrySummary] updateImageUrl called:", {
+    console.log('[RegistrySummary] updateImageUrl called:', {
       lastHash: this.lastContextHash,
       currentHash: contextHash,
       hasChanged: this.lastContextHash !== contextHash,
@@ -154,27 +154,27 @@ export class RegistryWalkinSummaryComponent
 
     // Only update if context actually changed
     if (this.lastContextHash === contextHash) {
-      console.log("[RegistrySummary] No change detected, skipping update");
+      console.log('[RegistrySummary] No change detected, skipping update');
       return;
     }
 
-    console.log("[RegistrySummary] Context changed, updating image URL");
+    console.log('[RegistrySummary] Context changed, updating image URL');
     this.lastContextHash = contextHash;
 
     const file = RegistryContextHelper.getFileByCategory(
       this.registryContext,
-      "id-card"
+      'id-card',
     );
 
     if (!file?.file_blob) {
-      console.log("[RegistrySummary] No file blob, clearing image URL");
-      this.revokeUrl("id-card");
-      this.currentImageUrl = "";
+      console.log('[RegistrySummary] No file blob, clearing image URL');
+      this.revokeUrl('id-card');
+      this.currentImageUrl = '';
       return;
     }
 
-    console.log("[RegistrySummary] Creating new image URL from blob");
-    this.currentImageUrl = this.getOrCreateUrl("id-card", file.file_blob);
+    console.log('[RegistrySummary] Creating new image URL from blob');
+    this.currentImageUrl = this.getOrCreateUrl('id-card', file.file_blob);
   }
 
   /**
@@ -190,7 +190,7 @@ export class RegistryWalkinSummaryComponent
   private getOrCreateUrl(key: string, blob: Blob): string {
     const cached = this.cachedUrls.get(key);
 
-    console.log("[RegistrySummary] getOrCreateUrl called:", {
+    console.log('[RegistrySummary] getOrCreateUrl called:', {
       key,
       hasCached: !!cached,
       blobSize: blob.size,
@@ -199,18 +199,18 @@ export class RegistryWalkinSummaryComponent
 
     // ถ้า Blob เปลี่ยน ต้อง revoke URL เดิมและสร้างใหม่
     if (cached && cached.blob !== blob) {
-      console.log("[RegistrySummary] Blob changed, revoking old URL");
+      console.log('[RegistrySummary] Blob changed, revoking old URL');
       URL.revokeObjectURL(cached.url);
       this.cachedUrls.delete(key);
     }
 
     // สร้าง URL ใหม่ถ้ายังไม่มี หรือ Blob เปลี่ยน
     if (!this.cachedUrls.has(key)) {
-      console.log("[RegistrySummary] Creating new Object URL");
+      console.log('[RegistrySummary] Creating new Object URL');
       const url = URL.createObjectURL(blob);
       this.cachedUrls.set(key, { url, blob });
     } else {
-      console.log("[RegistrySummary] Using cached URL");
+      console.log('[RegistrySummary] Using cached URL');
     }
 
     return this.cachedUrls.get(key)!.url;
@@ -242,9 +242,9 @@ export class RegistryWalkinSummaryComponent
   async startDataCollection(): Promise<void> {
     try {
       this.isInitialLoad = false;
-      await this.startSubflow("dataCollectionSubflow", this.executionContext());
+      await this.startSubflow('dataCollectionSubflow', this.executionContext());
     } catch (error) {
-      console.error("[RegistrySummary] Error starting subflow:", error);
+      console.error('[RegistrySummary] Error starting subflow:', error);
     }
   }
 
@@ -255,14 +255,14 @@ export class RegistryWalkinSummaryComponent
     try {
       // เปิด dataCollectionSubflow แต่เริ่มที่ node ที่ระบุ
       await this.startSubflow(
-        "dataCollectionSubflow",
+        'dataCollectionSubflow',
         this.executionContext(),
-        stepId // ← ส่ง startNodeId
+        stepId, // ← ส่ง startNodeId
       );
     } catch (error) {
       console.error(
         `[RegistrySummary] Error jumping to step ${stepId}:`,
-        error
+        error,
       );
     }
   }
@@ -272,7 +272,7 @@ export class RegistryWalkinSummaryComponent
       const ctx = this.registryContext;
 
       // Show loading state
-      const loadingAlert = document.createElement("div");
+      const loadingAlert = document.createElement('div');
       loadingAlert.innerHTML = `
         <div style="
           position: fixed;
@@ -312,44 +312,48 @@ export class RegistryWalkinSummaryComponent
 
       const cid = UUIDUtils.generateTxnId();
 
+      console.log('[submitRegistration] ctx', ctx);
+
       const data: RegistryTransaction = {
         id: cid,
         name: ctx.user.name,
         id_card_base64: ctx.user.id_card_base64,
         student_number: ctx.user.student_number,
-        register_type: ctx.user.register_type,
-        door_permission: ctx.user.door_permission,
-        status: "PENDING",
-        client_created_at: new Date().toString(),
+        register_type: ctx.register_type,
+        door_permission: Array.isArray(ctx.door_permission)
+          ? ctx.door_permission.join(',')
+          : ctx.door_permission,
+        status: 'IN',
+        client_created_at: Date.now().toString(),
       };
 
       // Submit to storage
       const result = await this.registryService.submitRegistration(data);
 
-      console.log("[RegistrySummary] Submit result:", result);
+      console.log('[RegistrySummary] Submit result:', result);
 
       // Remove loading alert
       document.body.removeChild(loadingAlert);
 
-      const fullName = result.transaction?.user.name || "ไม่ระบุ";
+      const fullName = result.transaction?.user.name || 'ไม่ระบุ';
       alert(
-        `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction?.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction?.status}`
+        `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction?.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction?.status}`,
       );
 
       // Close workflow
       await this.closeWorkflow();
     } catch (error) {
-      console.error("Error in submitRegistration:", error);
+      console.error('Error in submitRegistration:', error);
       alert(
         `❌ เกิดข้อผิดพลาดที่ไม่คาดคิด:\n\n${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
       );
     }
   }
 
   async cancelAndClose(): Promise<void> {
-    if (confirm("คุณต้องการกลับหน้าแรกหรือไม่?")) {
+    if (confirm('คุณต้องการกลับหน้าแรกหรือไม่?')) {
       await this.closeWorkflow();
     }
   }

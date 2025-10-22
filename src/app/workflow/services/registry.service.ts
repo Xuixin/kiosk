@@ -1,7 +1,7 @@
-import { Injectable } from "@angular/core";
-import { RegistryContext } from "../helpers/registry-context.helper";
-import { DatabaseService } from "src/app/core/Database/rxdb.service";
-import { RxTxnDocumentType } from "src/app/core/schema/txn.schema";
+import { Injectable } from '@angular/core';
+import { RegistryContext } from '../helpers/registry-context.helper';
+import { DatabaseService } from 'src/app/core/Database/rxdb.service';
+import { RxTxnDocumentType } from 'src/app/core/schema/txn.schema';
 
 export interface RegistryTransaction {
   id: string;
@@ -10,7 +10,7 @@ export interface RegistryTransaction {
   student_number: string;
   register_type: string;
   door_permission: string[];
-  status: "PENDING" | "IN" | "OUT";
+  status: 'PENDING' | 'IN' | 'OUT';
   client_created_at: string;
 }
 
@@ -21,7 +21,7 @@ export interface SubmitResult {
 }
 
 @Injectable({
-  providedIn: "root",
+  providedIn: 'root',
 })
 export class RegistryService {
   constructor(private readonly dbService: DatabaseService) {}

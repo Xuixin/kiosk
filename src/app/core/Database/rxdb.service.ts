@@ -1,16 +1,17 @@
-import { Injector, Injectable, Signal, untracked } from "@angular/core";
-import { toSignal } from "@angular/core/rxjs-interop";
+import { Injector, Injectable, Signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 
-import { environment } from "../../../environments/environment";
-import { TXN_SCHEMA } from "../schema/txn.schema";
+import { environment } from '../../../environments/environment';
+import { TXN_SCHEMA } from '../schema/txn.schema';
 
-import { RxReactivityFactory, createRxDatabase } from "rxdb/plugins/core";
+import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
 
-import { RxTxnsCollections, RxTxnsDatabase } from "./RxDB.D";
+import { RxTxnsCollections, RxTxnsDatabase } from './RxDB.D';
+import { GraphQLReplicationService } from './graphql-replication.service';
 
 environment.addRxDBPlugins();
 
-const DATABASE_NAME = "kiosk_db";
+const DATABASE_NAME = 'kiosk_db';
 
 const collectionsSettings = {
   txn: {
@@ -21,7 +22,7 @@ const collectionsSettings = {
 async function _create(injector: Injector): Promise<RxTxnsDatabase> {
   environment.addRxDBPlugins();
 
-  console.log("DatabaseService: creating database..");
+  console.log('DatabaseService: creating database..');
 
   const reactivityFactory: RxReactivityFactory<Signal<any>> = {
     fromObservable(obs, initialValue: any) {
@@ -29,7 +30,7 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
         toSignal(obs, {
           initialValue,
           injector,
-        })
+        }),
       );
     },
   };
@@ -41,18 +42,24 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
     reactivity: reactivityFactory,
   })) as RxTxnsDatabase;
 
-  console.log("DatabaseService: created database");
+  console.log('DatabaseService: created database');
 
   if (environment.multiInstance) {
     db.waitForLeadership().then(() => {
-      console.log("isLeader now");
-      document.title = "♛ " + document.title;
+      console.log('isLeader now');
+      document.title = '♛ ' + document.title;
     });
   }
 
-  console.log("DatabaseService: create collections");
+  console.log('DatabaseService: create collections');
 
   await db.addCollections(collectionsSettings);
+
+  // เริ่ม replication อัตโนมัติ
+  console.log('DatabaseService: starting replication...');
+  const replicationService = new GraphQLReplicationService();
+  await replicationService.setupReplication(db.txn);
+  console.log('DatabaseService: replication started');
 
   return db;
 }
@@ -62,11 +69,11 @@ let DB_INSTANCE: RxTxnsDatabase;
 
 export async function initDatabase(injector: Injector) {
   if (!injector) {
-    throw new Error("initDatabase() injector missing");
+    throw new Error('initDatabase() injector missing');
   }
 
   if (!initState) {
-    console.log("initDatabase()");
+    console.log('initDatabase()');
     initState = _create(injector).then((db) => (DB_INSTANCE = db));
   }
   await initState;
@@ -74,7 +81,19 @@ export async function initDatabase(injector: Injector) {
 
 @Injectable()
 export class DatabaseService {
+  private replicationService?: GraphQLReplicationService;
+
   get db(): RxTxnsDatabase {
     return DB_INSTANCE;
+  }
+
+  /**
+   * หยุด replication
+   */
+  async stopReplication() {
+    if (this.replicationService) {
+      await this.replicationService.stopReplication();
+      console.log('GraphQL replication stopped');
+    }
   }
 }

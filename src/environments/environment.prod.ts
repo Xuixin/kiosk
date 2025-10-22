@@ -7,14 +7,14 @@ const sqlite = new SQLiteConnection(CapacitorSQLite);
 
 export const environment = {
   production: true,
-  apiUrl: 'https://api.yourdomain.com',
-  wsUrl: 'wss://api.yourdomain.com',
+  apiUrl: 'http://localhost:3001/graphql',
+  wsUrl: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
   addRxDBPlugins() {},
   getRxStorage() {
     return getRxStorageSQLiteTrial({
-      sqliteBasics: getSQLiteBasicsCapacitor(sqlite, CapacitorSQLite),
+      sqliteBasics: getSQLiteBasicsCapacitor(sqlite, Capacitor),
     });
   },
 };

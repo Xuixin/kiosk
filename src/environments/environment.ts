@@ -8,8 +8,8 @@ const sqlite = new SQLiteConnection(CapacitorSQLite);
 
 export const environment = {
   production: false,
-  apiUrl: 'https://api.yourdomain.com',
-  wsUrl: 'wss://api.yourdomain.com',
+  apiUrl: 'http://localhost:3001/graphql',
+  wsUrl: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
   addRxDBPlugins() {},
