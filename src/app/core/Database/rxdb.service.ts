@@ -1,25 +1,31 @@
-import { Injector, Injectable, Signal, untracked } from '@angular/core';
+import { Injector, Injectable, Signal, untracked, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { environment } from '../../../environments/environment';
 import { TXN_SCHEMA } from '../schema/txn.schema';
+import { DOOR_SCHEMA } from '../schema/door.schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
 
 import { RxTxnsCollections, RxTxnsDatabase } from './RxDB.D';
-import { GraphQLReplicationService } from './graphql-replication.service';
+import { TransactionReplicationService } from './transaction-replication.service';
+import { DoorReplicationService } from './door-replication.service';
 
 environment.addRxDBPlugins();
-
-const DATABASE_NAME = 'kiosk_db';
 
 const collectionsSettings = {
   txn: {
     schema: TXN_SCHEMA as any,
   },
+  door: {
+    schema: DOOR_SCHEMA as any,
+  },
 };
 
-async function _create(injector: Injector): Promise<RxTxnsDatabase> {
+async function _create(
+  injector: Injector,
+  doorId: string,
+): Promise<RxTxnsDatabase> {
   environment.addRxDBPlugins();
 
   console.log('DatabaseService: creating database..');
@@ -35,8 +41,11 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
     },
   };
 
+  const databaseName = `door-${doorId}.db`;
+  console.log('DatabaseService: creating database with name:', databaseName);
+
   const db = (await createRxDatabase<RxTxnsCollections>({
-    name: DATABASE_NAME,
+    name: databaseName,
     storage: environment.getRxStorage(),
     multiInstance: environment.multiInstance,
     reactivity: reactivityFactory,
@@ -56,44 +65,73 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
   await db.addCollections(collectionsSettings);
 
   // เริ่ม replication อัตโนมัติ
-  console.log('DatabaseService: starting replication...');
-  const replicationService = new GraphQLReplicationService();
-  await replicationService.setupReplication(db.txn);
-  console.log('DatabaseService: replication started');
+  console.log('DatabaseService: starting replications...');
+
+  // Get replication services from injector instead of creating them manually
+  const transactionReplicationService = injector.get(
+    TransactionReplicationService,
+  );
+  const doorReplicationService = injector.get(DoorReplicationService);
+
+  await transactionReplicationService.setupReplication(db.txn);
+  await doorReplicationService.setupReplication(db.door);
+  console.log('DatabaseService: replications started');
 
   return db;
 }
 
 let initState: null | Promise<any> = null;
-let DB_INSTANCE: RxTxnsDatabase;
+let DB_INSTANCE: RxTxnsDatabase | null = null;
 
-export async function initDatabase(injector: Injector) {
+export async function initDatabase(injector: Injector, doorId: string) {
   if (!injector) {
     throw new Error('initDatabase() injector missing');
   }
 
+  if (!doorId) {
+    throw new Error('initDatabase() doorId missing');
+  }
+
   if (!initState) {
-    console.log('initDatabase()');
-    initState = _create(injector).then((db) => (DB_INSTANCE = db));
+    console.log('initDatabase() with doorId:', doorId);
+    initState = _create(injector, doorId).then((db) => {
+      DB_INSTANCE = db;
+      console.log('DatabaseService: Database instance set');
+      return db;
+    });
   }
   await initState;
 }
 
 @Injectable()
 export class DatabaseService {
-  private replicationService?: GraphQLReplicationService;
+  constructor(
+    private transactionReplicationService: TransactionReplicationService,
+    private doorReplicationService: DoorReplicationService,
+  ) {}
 
   get db(): RxTxnsDatabase {
+    if (!DB_INSTANCE) {
+      throw new Error('Database not initialized. Call initDatabase() first.');
+    }
     return DB_INSTANCE;
   }
 
   /**
-   * หยุด replication
+   * Check if database is ready
+   */
+  get isReady(): boolean {
+    return DB_INSTANCE !== null;
+  }
+
+  /**
+   * หยุด replication ทั้งหมด
    */
   async stopReplication() {
-    if (this.replicationService) {
-      await this.replicationService.stopReplication();
-      console.log('GraphQL replication stopped');
-    }
+    await this.transactionReplicationService.stopReplication();
+    console.log('Transaction replication stopped');
+
+    await this.doorReplicationService.stopReplication();
+    console.log('Door replication stopped');
   }
 }

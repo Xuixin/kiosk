@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { RouteReuseStrategy } from '@angular/router';
+import { HttpClientModule } from '@angular/common/http';
 
 import { IonicModule } from '@ionic/angular';
 import {
@@ -20,14 +21,30 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { MessageService } from 'primeng/api';
 import { ConfirmationService } from 'primeng/api';
 import { providePrimeNG } from 'primeng/config';
-import { initDatabase, DatabaseService } from './core/Database/rxdb.service';
+import { DatabaseService } from './core/Database/rxdb.service';
 import { WorkflowPreloadService } from './flow-services/workflow-preload.service';
+import { DoorSelectionModalComponent } from './components/door-selection-modal/door-selection-modal.component';
+import { DoorPreferenceService } from './services/door-preference.service';
+import { TransactionService } from './services/transaction.service';
+import { TransactionReplicationService } from './core/Database/transaction-replication.service';
+import { DoorReplicationService } from './core/Database/door-replication.service';
+import { DoorCheckpointService } from './services/door-checkpoint.service';
+import { GraphQLService } from './services/graphql.service';
 import Aura from '@primeng/themes/aura';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 @NgModule({
   declarations: [AppComponent],
-  imports: [BrowserModule, IonicModule.forRoot(), AppRoutingModule],
+  imports: [
+    BrowserModule,
+    HttpClientModule,
+    IonicModule.forRoot(),
+    AppRoutingModule,
+    CommonModule,
+    FormsModule,
+    DoorSelectionModalComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [
     {
@@ -35,13 +52,6 @@ import { CommonModule } from '@angular/common';
       useClass: IonicRouteStrategy,
     },
     provideIonicAngular(),
-    // * database
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (injector: Injector) => () => initDatabase(injector),
-      multi: true,
-      deps: [Injector],
-    },
     // * workflow preload
     {
       provide: APP_INITIALIZER,
@@ -54,6 +64,12 @@ import { CommonModule } from '@angular/common';
     },
     DatabaseService,
     WorkflowPreloadService,
+    DoorPreferenceService,
+    TransactionService,
+    TransactionReplicationService,
+    DoorReplicationService,
+    DoorCheckpointService,
+    GraphQLService,
     // * animations
     provideAnimationsAsync(),
     MessageService,

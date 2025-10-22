@@ -1,5 +1,5 @@
-// graphql-replication.service.ts
-import { Injectable } from '@angular/core';
+// transaction-replication.service.ts
+import { Injectable, inject } from '@angular/core';
 import { replicateGraphQL } from 'rxdb/plugins/replication-graphql';
 import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
 import { RxTxnCollection, RxTxnDocument } from './RxDB.D';
@@ -10,16 +10,17 @@ import {
   PULL_TRANSACTION_QUERY,
   STREAM_TRANSACTION_SUBSCRIPTION,
 } from './query-builder/txn-query-builder';
+import { DoorPreferenceService } from '../../services/door-preference.service';
 
 @Injectable({
   providedIn: 'root',
 })
-export class GraphQLReplicationService {
+export class TransactionReplicationService {
   public replicationState?: RxGraphQLReplicationState<RxTxnDocumentType, any>;
   private graphqlEndpoint: string = environment.apiUrl;
   private graphqlWsEndpoint: string = environment.wsUrl;
-
-  constructor() {}
+  private doorPreferenceService = inject(DoorPreferenceService);
+  private doorId: string | null = null;
 
   /**
    * เริ่มต้น GraphQL Replication
@@ -28,6 +29,10 @@ export class GraphQLReplicationService {
     collection: RxTxnCollection,
   ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any>> {
     console.log('Setting up GraphQL replication...');
+
+    // Get door ID for filtering
+    this.doorId = await this.doorPreferenceService.getDoorId();
+    console.log('🚪 Current door ID for replication:', this.doorId);
 
     this.replicationState = replicateGraphQL<RxTxnDocumentType, any>({
       collection,
@@ -66,9 +71,6 @@ export class GraphQLReplicationService {
         },
 
         responseModifier: (plainResponse, requestCheckpoint) => {
-          // plainResponse = { pullTransaction: { documents: [...], checkpoint: {...} } }
-          // or { streamTransaction2: { documents: [...], checkpoint: {...} } }
-
           console.log('🟢 Full Response:', plainResponse);
 
           const pullData =
@@ -77,8 +79,6 @@ export class GraphQLReplicationService {
             plainResponse;
           const documents = pullData.documents || [];
           const checkpoint = pullData.checkpoint;
-
-          // const filteredDocs = documents.filter((d: any) => d.status !== 'OUT');
 
           console.log('📊 Pull Summary:', {
             documentsCount: documents.length,
@@ -94,21 +94,34 @@ export class GraphQLReplicationService {
         },
 
         modifier: (doc) => {
-          // // ❌ ถ้า status = 'OUT' จะไม่บันทึก
-          if (doc.status === 'OUT') {
-            return {
-              ...doc,
-              _deleted: true,
-            };
-          }
+          // For now, we'll let the server handle filtering
+          // The client will receive all transactions and filter them locally
+          console.log('🔄 Processing transaction:', doc.id, doc.status);
 
-          return {
+          let newDoc = {
             ...doc,
             door_permission:
               typeof doc.door_permission === 'string'
                 ? doc.door_permission.split(',').map((s: any) => s.trim())
                 : doc.door_permission,
           };
+
+          console.log('🚪 Current door ID:', this.doorId);
+          console.log('🚪 Door permissions:', newDoc.door_permission);
+
+          // Filter out transactions that don't belong to current door
+          if (
+            doc.status === 'OUT' ||
+            !this.doorId ||
+            !newDoc.door_permission.includes(this.doorId)
+          ) {
+            console.log('❌ Filtering out transaction:', doc.id);
+            newDoc._deleted = true;
+          } else {
+            console.log('✅ Keeping transaction:', doc.id);
+          }
+
+          return newDoc;
         },
       },
 

@@ -1,6 +1,11 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, Injector } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { DatabaseService } from './core/Database/rxdb.service';
+import { DoorPreferenceService } from './services/door-preference.service';
+import { DoorCheckpointService } from './services/door-checkpoint.service';
+import { ModalController } from '@ionic/angular';
+import { DoorSelectionModalComponent } from './components/door-selection-modal/door-selection-modal.component';
+import { initDatabase } from './core/Database/rxdb.service';
 
 import 'zone.js/plugins/zone-patch-rxjs';
 @Component({
@@ -10,13 +15,95 @@ import 'zone.js/plugins/zone-patch-rxjs';
   styleUrls: ['app.component.scss'],
 })
 export class AppComponent implements OnInit, OnDestroy {
-  constructor(private databaseService: DatabaseService) {}
+  private doorPreferenceService = inject(DoorPreferenceService);
+  private doorCheckpointService = inject(DoorCheckpointService);
+  private modalController = inject(ModalController);
+  private databaseService = inject(DatabaseService);
+  private injector = inject(Injector);
+
+  constructor() {}
 
   async ngOnInit() {
     console.log('🚀 App component initialized');
+    await this.initializeDoorSystem();
   }
 
   ngOnDestroy() {
     this.databaseService.stopReplication();
+  }
+
+  /**
+   * Initialize door system
+   */
+  private async initializeDoorSystem() {
+    try {
+      console.log('🚪 Initializing door system...');
+
+      // Check if door-id exists in preferences
+      const hasDoorId = await this.doorPreferenceService.hasDoorId();
+
+      if (hasDoorId) {
+        // Case 2: Existing door-id
+        console.log('✅ Door ID found in preferences');
+        const doorId = await this.doorPreferenceService.getDoorId();
+        if (doorId) {
+          await this.initializeDatabase(doorId);
+        }
+      } else {
+        // Case 1: No door-id - show selection modal
+        console.log('❌ No door ID found, showing selection modal');
+        await this.showDoorSelectionModal();
+      }
+    } catch (error) {
+      console.error('❌ Error initializing door system:', error);
+    }
+  }
+
+  /**
+   * Show door selection modal
+   */
+  private async showDoorSelectionModal() {
+    try {
+      const modal = await this.modalController.create({
+        component: DoorSelectionModalComponent,
+        backdropDismiss: false, // Prevent dismissing without selection
+        cssClass: 'door-selection-modal',
+      });
+
+      await modal.present();
+
+      const { data } = await modal.onDidDismiss();
+
+      if (data) {
+        // User selected a door
+        console.log('✅ Door selected:', data);
+        await this.initializeDatabase(data);
+      } else {
+        // User cancelled - show modal again
+        console.log('❌ Door selection cancelled, showing modal again');
+        await this.showDoorSelectionModal();
+      }
+    } catch (error) {
+      console.error('❌ Error showing door selection modal:', error);
+    }
+  }
+
+  /**
+   * Initialize database with door ID
+   */
+  private async initializeDatabase(doorId: string) {
+    try {
+      console.log('🗄️ Initializing database for door:', doorId);
+
+      // Initialize database with door ID
+      await initDatabase(this.injector, doorId);
+
+      // Initialize door checkpoint service after database is ready
+      this.doorCheckpointService.initialize();
+
+      console.log('✅ Database initialized successfully for door:', doorId);
+    } catch (error) {
+      console.error('❌ Error initializing database:', error);
+    }
   }
 }

@@ -1,6 +1,7 @@
-import type { RxDocument, RxCollection, RxDatabase } from "rxdb";
-import { RxTxnDocumentType } from "../schema/txn.schema";
-import { Signal } from "@angular/core";
+import type { RxDocument, RxCollection, RxDatabase } from 'rxdb';
+import { RxTxnDocumentType } from '../schema/txn.schema';
+import { RxDoorDocumentType } from '../schema/door.schema';
+import { Signal } from '@angular/core';
 
 // orm method
 type RxTxnMethods = {
@@ -19,8 +20,26 @@ export type RxTxnCollection = RxCollection<
   Signal<unknown>
 >;
 
+// Door methods
+type RxDoorMethods = {
+  findAll: () => Promise<RxDoorDocument[]>;
+  findById: (id: string) => Promise<RxDoorDocument | null>;
+  create: (door: RxDoorDocumentType) => Promise<RxDoorDocument>;
+  update: (door: RxDoorDocumentType) => Promise<RxDoorDocument>;
+};
+
+export type RxDoorDocument = RxDocument<RxDoorDocumentType, RxDoorMethods>;
+export type RxDoorCollection = RxCollection<
+  RxDoorDocumentType,
+  RxDoorMethods,
+  unknown,
+  unknown,
+  Signal<unknown>
+>;
+
 export type RxTxnsCollections = {
   txn: RxTxnCollection;
+  door: RxDoorCollection;
 };
 export type RxTxnsDatabase = RxDatabase<
   RxTxnsCollections,

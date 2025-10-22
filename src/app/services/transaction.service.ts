@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
 import { DatabaseService } from '../core/Database/rxdb.service';
-import { GraphQLReplicationService } from '../core/Database/graphql-replication.service';
+import { TransactionReplicationService } from '../core/Database/transaction-replication.service';
 import { Subscription } from 'rxjs';
 
 export interface TransactionStats {
@@ -15,7 +15,7 @@ export interface TransactionStats {
 })
 export class TransactionService implements OnDestroy {
   private readonly databaseService = inject(DatabaseService);
-  private readonly replicationService = inject(GraphQLReplicationService);
+  private readonly replicationService = inject(TransactionReplicationService);
   private subscription?: Subscription;
   private replicationSubscription?: Subscription;
 
@@ -59,14 +59,21 @@ export class TransactionService implements OnDestroy {
     try {
       console.log('🔄 Setting up replication subscription...');
 
+      // Check if database is available
+      if (!this.databaseService.isReady) {
+        console.warn('⚠️ Database not ready, retrying in 1s...');
+        setTimeout(() => this.setupReplicationSubscription(), 1000);
+        return;
+      }
+
       // Subscribe to replication received events
       this.replicationSubscription =
         this.replicationService.replicationState?.received$.subscribe({
-          next: (received) => {
+          next: (received: any) => {
             console.log('🔄 Replication received:', received);
             this.handleReplicationData(received);
           },
-          error: (error) => {
+          error: (error: any) => {
             console.error('❌ Error in replication subscription:', error);
           },
         });
@@ -129,6 +136,13 @@ export class TransactionService implements OnDestroy {
   async refreshTransactions() {
     try {
       console.log('🔄 Manually refreshing transactions...');
+
+      // Check if database is ready
+      if (!this.databaseService.isReady) {
+        console.warn('⚠️ Database not ready for refresh');
+        return;
+      }
+
       const txns = await this.databaseService.db.txn.find().exec();
       this._transactions.set(txns);
       console.log('🔄 Manually refreshed transactions:', txns.length);
