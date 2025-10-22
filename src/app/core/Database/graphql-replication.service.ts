@@ -11,9 +11,11 @@ import {
   STREAM_TRANSACTION_SUBSCRIPTION,
 } from './query-builder/txn-query-builder';
 
-@Injectable()
+@Injectable({
+  providedIn: 'root',
+})
 export class GraphQLReplicationService {
-  private replicationState?: RxGraphQLReplicationState<RxTxnDocumentType, any>;
+  public replicationState?: RxGraphQLReplicationState<RxTxnDocumentType, any>;
   private graphqlEndpoint: string = environment.apiUrl;
   private graphqlWsEndpoint: string = environment.wsUrl;
 
@@ -163,10 +165,6 @@ export class GraphQLReplicationService {
 
     this.replicationState.error$.subscribe((error) => {
       console.error('Replication error:', error);
-    });
-
-    this.replicationState.active$.subscribe((active) => {
-      console.log('Replication active:', active);
     });
 
     // เพิ่ม logging สำหรับ pull events

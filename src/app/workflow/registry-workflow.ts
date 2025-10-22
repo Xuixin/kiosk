@@ -10,6 +10,7 @@ export const REGISTRY_WALKIN_WORKFLOW: Flow = {
   id: 'registry-walkin-workflow',
   version: '1.0.0',
   start: 'summary',
+  preload: true, // component ทั้งหมดใน flow นี้ 
   nodes: {
     summary: {
       id: 'summary',

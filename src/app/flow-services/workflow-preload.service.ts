@@ -1,55 +1,56 @@
-import { Injectable } from "@angular/core";
-import { NodeComponentRegistryService } from "./node-component-registry.service";
+import { Injectable } from '@angular/core';
+import { NodeComponentRegistryService } from './node-component-registry.service';
+import { WorkflowRegistryService } from './workflow-registry.service';
 
 @Injectable({
-  providedIn: "root",
+  providedIn: 'root',
 })
 export class WorkflowPreloadService {
-  constructor(private nodeComponentRegistry: NodeComponentRegistryService) {}
+  constructor(
+    private nodeComponentRegistry: NodeComponentRegistryService,
+    private workflowRegistry: WorkflowRegistryService,
+  ) {}
 
   /**
    * Preload all workflow components
    */
   async preloadWorkflowComponents(): Promise<void> {
+    const startTime = performance.now();
+
     try {
-      console.log("[WorkflowPreload] Starting component preload...");
+      console.log('📦 [WorkflowPreload] Starting component preload...');
 
-      // Preload all registered components
-      const componentKeys = [
-        "RegistryWalkinSummaryComponent",
-        "IdCardCaptureComponent",
-        "UserDataFormComponent",
-        "DoorPermissionComponent",
-      ];
+      // Get all workflows with preload flag
+      const workflowsToPreload =
+        this.workflowRegistry.getWorkflowsWithPreload();
 
-      const preloadPromises = componentKeys.map((key) =>
-        this.nodeComponentRegistry
-          .get(key)
-          .catch((err) =>
-            console.warn(`[WorkflowPreload] Failed to preload ${key}:`, err)
-          )
+      // Extract all components from workflows
+      const allComponents = new Set<string>();
+      workflowsToPreload.forEach((workflow) => {
+        const components =
+          this.workflowRegistry.extractComponentsFromWorkflow(workflow);
+        components.forEach((c) => allComponents.add(c));
+      });
+
+      const componentKeys = Array.from(allComponents);
+      console.log(
+        `📦 Total components to preload: ${componentKeys.length}`,
+        componentKeys,
       );
 
-      await Promise.all(preloadPromises);
+      // Preload all components
+      const preloadPromises = componentKeys.map(async (key) => {
+        const componentStartTime = performance.now();
+        try {
+          await this.nodeComponentRegistry.get(key);
+        } catch (err) {
+          console.warn(`❌ Failed to preload ${key}:`, err);
+        }
+      });
 
-      console.log("[WorkflowPreload] Component preload completed");
+      await Promise.allSettled(preloadPromises);
     } catch (error) {
-      console.error("[WorkflowPreload] Error during preload:", error);
-    }
-  }
-
-  /**
-   * Preload specific component
-   */
-  async preloadComponent(componentKey: string): Promise<void> {
-    try {
-      await this.nodeComponentRegistry.get(componentKey);
-      console.log(`[WorkflowPreload] Preloaded component: ${componentKey}`);
-    } catch (error) {
-      console.error(
-        `[WorkflowPreload] Failed to preload ${componentKey}:`,
-        error
-      );
+      console.error('💥 Error during preload:', error);
     }
   }
 }

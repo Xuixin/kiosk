@@ -1,5 +1,6 @@
 import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
 import { DatabaseService } from '../core/Database/rxdb.service';
+import { GraphQLReplicationService } from '../core/Database/graphql-replication.service';
 import { Subscription } from 'rxjs';
 
 export interface TransactionStats {
@@ -14,9 +15,9 @@ export interface TransactionStats {
 })
 export class TransactionService implements OnDestroy {
   private readonly databaseService = inject(DatabaseService);
+  private readonly replicationService = inject(GraphQLReplicationService);
   private subscription?: Subscription;
-  private retryCount = 0;
-  private maxRetries = 5;
+  private replicationSubscription?: Subscription;
 
   // Signals for reactive data
   private _transactions = signal<any[]>([]);
@@ -41,7 +42,7 @@ export class TransactionService implements OnDestroy {
   constructor() {
     // ใช้ setTimeout เพื่อให้ database พร้อมก่อน
     setTimeout(() => {
-      this.setupReactiveSubscription();
+      this.setupReplicationSubscription();
     }, 2000);
   }
 
@@ -49,63 +50,78 @@ export class TransactionService implements OnDestroy {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
-  }
-
-  private setupReactiveSubscription() {
-    try {
-      console.log(
-        '🔄 Setting up transaction reactive subscription... (attempt:',
-        this.retryCount + 1,
-        ')',
-      );
-      console.log('Database service:', this.databaseService);
-      console.log('Database instance:', this.databaseService.db);
-      console.log('Txn collection:', this.databaseService.db.txn);
-
-      // ตรวจสอบว่า database พร้อมหรือไม่
-      if (!this.databaseService.db || !this.databaseService.db.txn) {
-        console.error('❌ Database or txn collection not ready, retrying...');
-        this.retrySubscription();
-        return;
-      }
-
-      this.subscription = this.databaseService.db.txn.find().$.subscribe({
-        next: (txns) => {
-          console.log(
-            '🔄 Transaction data updated:',
-            txns.length,
-            'transactions',
-          );
-          console.log('Sample transaction:', txns[0]);
-          this._transactions.set(txns);
-          this.retryCount = 0; // Reset retry count on success
-        },
-        error: (error) => {
-          console.error('❌ Error in transaction subscription:', error);
-          this.retrySubscription();
-        },
-      });
-
-      console.log('✅ Transaction subscription setup completed');
-    } catch (error) {
-      console.error('❌ Error setting up reactive subscription:', error);
-      this.retrySubscription();
+    if (this.replicationSubscription) {
+      this.replicationSubscription.unsubscribe();
     }
   }
 
-  private retrySubscription() {
-    if (this.retryCount < this.maxRetries) {
-      this.retryCount++;
+  private setupReplicationSubscription() {
+    try {
+      console.log('🔄 Setting up replication subscription...');
+
+      // Subscribe to replication received events
+      this.replicationSubscription =
+        this.replicationService.replicationState?.received$.subscribe({
+          next: (received) => {
+            console.log('🔄 Replication received:', received);
+            this.handleReplicationData(received);
+          },
+          error: (error) => {
+            console.error('❌ Error in replication subscription:', error);
+          },
+        });
+
+      // Also subscribe to local database changes as backup
+      this.subscription = this.databaseService.db.txn.find().$.subscribe({
+        next: (txns) => {
+          console.log(
+            '🔄 Local database updated:',
+            txns.length,
+            'transactions',
+          );
+          this._transactions.set(txns);
+        },
+        error: (error) => {
+          console.error('❌ Error in local subscription:', error);
+        },
+      });
+
+      console.log('✅ Replication subscription setup completed');
+    } catch (error) {
+      console.error('❌ Error setting up replication subscription:', error);
+    }
+  }
+
+  private handleReplicationData(received: any) {
+    try {
+      // received อาจเป็น document เดียวหรือ array ของ documents
+      if (Array.isArray(received)) {
+        // ถ้าเป็น array ให้อัปเดตทั้งหมด
+        this._transactions.set(received);
+      } else if (received && typeof received === 'object') {
+        // ถ้าเป็น document เดียว ให้เพิ่มหรืออัปเดต
+        const currentTxns = this._transactions();
+        const existingIndex = currentTxns.findIndex(
+          (t) => t.id === received.id,
+        );
+
+        if (existingIndex >= 0) {
+          // อัปเดต document ที่มีอยู่
+          const updatedTxns = [...currentTxns];
+          updatedTxns[existingIndex] = received;
+          this._transactions.set(updatedTxns);
+        } else {
+          // เพิ่ม document ใหม่
+          this._transactions.set([received, ...currentTxns]);
+        }
+      }
+
       console.log(
-        '🔄 Retrying subscription in 2 seconds... (attempt:',
-        this.retryCount,
-        ')',
+        '📊 Updated transactions count:',
+        this._transactions().length,
       );
-      setTimeout(() => {
-        this.setupReactiveSubscription();
-      }, 2000);
-    } else {
-      console.error('❌ Max retries reached, giving up on subscription');
+    } catch (error) {
+      console.error('❌ Error handling replication data:', error);
     }
   }
 
@@ -130,6 +146,9 @@ export class TransactionService implements OnDestroy {
 
   // Method to check if service is working
   isServiceWorking() {
-    return this.subscription && !this.subscription.closed;
+    return (
+      (this.subscription && !this.subscription.closed) ||
+      (this.replicationSubscription && !this.replicationSubscription.closed)
+    );
   }
 }

@@ -53,22 +53,8 @@ export class HomePage implements OnInit, OnDestroy {
 
   ngOnInit() {
     console.log('HomePage initialized with reactive signals');
-    console.log('Transaction service:', this.transactionService);
-    console.log('Initial transactions:', this.transactions());
+    console.log('Initial transactions:', this.transactions().length);
     console.log('Initial stats:', this.stats());
-    console.log('Service working:', this.transactionService.isServiceWorking());
-
-    // เรียกใช้ refresh เพื่อทดสอบ
-    this.transactionService.refreshTransactions();
-
-    // ตรวจสอบทุก 5 วินาที
-    setInterval(() => {
-      console.log('Service status check:', {
-        working: this.transactionService.isServiceWorking(),
-        transactions: this.transactions().length,
-        stats: this.stats(),
-      });
-    }, 5000);
   }
 
   ngOnDestroy() {

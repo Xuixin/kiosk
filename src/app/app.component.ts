@@ -12,7 +12,9 @@ import 'zone.js/plugins/zone-patch-rxjs';
 export class AppComponent implements OnInit, OnDestroy {
   constructor(private databaseService: DatabaseService) {}
 
-  async ngOnInit() {}
+  async ngOnInit() {
+    console.log('🚀 App component initialized');
+  }
 
   ngOnDestroy() {
     this.databaseService.stopReplication();

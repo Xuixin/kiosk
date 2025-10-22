@@ -57,6 +57,7 @@ export interface Flow {
   id: string;
   version: string;
   start: string;
+  preload?: boolean; // ← เพิ่มบรรทัดนี้
   returnTo?: string;
   globals?: Record<string, any>;
   nodes: Record<string, FlowNode>;
