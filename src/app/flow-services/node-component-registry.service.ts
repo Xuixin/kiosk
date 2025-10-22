@@ -127,29 +127,7 @@ export class NodeComponentRegistryService {
 
   private _registerWorkflowComponents(): void {
     // Registry Workflow Components
-    this.register("RegistryWalkinSummaryComponent", () =>
-      import(
-        "../workflow/components/registry-workflow/summary/registry-walkin-summary.component"
-      ).then((m) => m.RegistryWalkinSummaryComponent)
-    );
 
-    this.register("IdCardCaptureComponent", () =>
-      import(
-        "../workflow/components/registry-workflow/id-card-capture/id-card-capture.component"
-      ).then((m) => m.IdCardCaptureComponent)
-    );
-
-    this.register("UserDataFormComponent", () =>
-      import(
-        "../workflow/components/registry-workflow/user-data/user-data-form.component"
-      ).then((m) => m.UserDataFormComponent)
-    );
-
-    this.register("DoorPermissionComponent", () =>
-      import(
-        "../workflow/components/registry-workflow/door-permission/door-permission.component"
-      ).then((m) => m.DoorPermissionComponent)
-    );
 
     console.log("All workflow components registered successfully:", {
       totalComponents: this._registrations.size,

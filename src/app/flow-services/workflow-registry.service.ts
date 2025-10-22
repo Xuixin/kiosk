@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { Flow } from '../types/flow.types';
-import { REGISTRY_WALKIN_WORKFLOW } from '../workflow/registry-workflow';
 
 @Injectable({ providedIn: 'root' })
 export class WorkflowRegistryService {
@@ -12,7 +11,6 @@ export class WorkflowRegistryService {
 
   private registerWorkflows() {
     // Register all workflows
-    this.register(REGISTRY_WALKIN_WORKFLOW);
   }
 
   register(workflow: Flow) {

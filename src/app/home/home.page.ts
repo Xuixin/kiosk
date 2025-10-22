@@ -8,10 +8,7 @@ import {
 } from '@angular/core';
 import { FlowControllerService } from '../flow-services/flow-controller.service';
 import { TransactionService } from '../services/transaction.service';
-import {
-  REGISTRY_WALKIN_WORKFLOW,
-  REGISTRY_INITIAL_CONTEXT,
-} from '../workflow/registry-workflow';
+
 
 @Component({
   selector: 'app-home',
@@ -33,12 +30,6 @@ export class HomePage implements OnInit, OnDestroy {
   public readonly stats = this.transactionService.stats;
   public readonly recentTransactions =
     this.transactionService.recentTransactions;
-
-  // Computed properties for template
-  public readonly totalCount = computed(() => this.stats().total);
-  public readonly pendingCount = computed(() => this.stats().pending);
-  public readonly inCount = computed(() => this.stats().in);
-  public readonly outCount = computed(() => this.stats().out);
 
   private timeInterval?: any;
 
@@ -63,12 +54,4 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  async startRegistryWorkflow(): Promise<void> {
-    console.log('Starting Registry Workflow...');
-    await this.flowController.startWorkflow(
-      REGISTRY_WALKIN_WORKFLOW,
-      undefined,
-      REGISTRY_INITIAL_CONTEXT,
-    );
-  }
 }
