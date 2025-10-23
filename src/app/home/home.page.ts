@@ -12,6 +12,7 @@ import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
+import { DatabaseService } from '../core/Database/rxdb.service';
 
 @Component({
   selector: 'app-home',
@@ -41,8 +42,9 @@ export class HomePage implements OnInit, OnDestroy {
   public readonly outCount = computed(() => this.stats().out);
 
   private timeInterval?: any;
+  id: any;
 
-  constructor() {
+  constructor(private readonly dbService: DatabaseService) {
     console.log('HomePage constructor');
 
     this.timeInterval = setInterval(() => {
@@ -55,6 +57,12 @@ export class HomePage implements OnInit, OnDestroy {
     console.log('HomePage initialized with reactive signals');
     console.log('Initial transactions:', this.transactions().length);
     console.log('Initial stats:', this.stats());
+  }
+
+  async out() {
+    const id = this.id;
+
+
   }
 
   ngOnDestroy() {
