@@ -19,6 +19,8 @@ const collectionsSettings = {
   },
 };
 
+let GLOBAL_DB_SERVICE: DatabaseService | undefined;
+
 async function _create(injector: Injector): Promise<RxTxnsDatabase> {
   environment.addRxDBPlugins();
 
@@ -55,11 +57,8 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
 
   await db.addCollections(collectionsSettings);
 
-  // เริ่ม replication อัตโนมัติ
-  console.log('DatabaseService: starting replication...');
-  const replicationService = new GraphQLReplicationService();
-  await replicationService.setupReplication(db.txn);
-  console.log('DatabaseService: replication started');
+  // เริ่ม replication อัตโนมัติ - จะถูกสร้างโดย DatabaseService
+  console.log('DatabaseService: replication will be set up by DatabaseService');
 
   return db;
 }
@@ -74,7 +73,21 @@ export async function initDatabase(injector: Injector) {
 
   if (!initState) {
     console.log('initDatabase()');
-    initState = _create(injector).then((db) => (DB_INSTANCE = db));
+    initState = _create(injector).then((db) => {
+      DB_INSTANCE = db;
+      // สร้าง replication หลังจากสร้าง database แล้ว
+      const replicationService = new GraphQLReplicationService();
+      GLOBAL_DB_SERVICE?.setReplicationService(replicationService);
+      replicationService.setupReplication(db.txn).then((replicationState) => {
+        if (replicationState) {
+          console.log('DatabaseService: replication started');
+        } else {
+          console.log(
+            'DatabaseService: replication not started (offline or error)',
+          );
+        }
+      });
+    });
   }
   await initState;
 }
@@ -82,6 +95,14 @@ export async function initDatabase(injector: Injector) {
 @Injectable()
 export class DatabaseService {
   private replicationService?: GraphQLReplicationService;
+
+  constructor() {
+    GLOBAL_DB_SERVICE = this;
+  }
+
+  setReplicationService(service: GraphQLReplicationService) {
+    this.replicationService = service;
+  }
 
   get db(): RxTxnsDatabase {
     return DB_INSTANCE;
@@ -95,5 +116,12 @@ export class DatabaseService {
       await this.replicationService.stopReplication();
       console.log('GraphQL replication stopped');
     }
+  }
+
+  /**
+   * เช็คสถานะการเชื่อมต่อ
+   */
+  getOnlineStatus(): boolean {
+    return this.replicationService?.getOnlineStatus() ?? false;
   }
 }

@@ -39,7 +39,7 @@ export const PULL_TRANSACTION_QUERY = `
       }
       checkpoint {
         id
-        server_created_at
+        server_updated_at
       }
     }
   }
@@ -64,7 +64,7 @@ export const STREAM_TRANSACTION_SUBSCRIPTION = `
       }
       checkpoint {
         id
-        server_created_at
+        server_updated_at
       }
     }
   }
