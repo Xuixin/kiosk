@@ -48,7 +48,7 @@ export class GraphQLReplicationService {
               input: {
                 checkpoint: {
                   id: checkpoint?.id || '',
-                  server_updated_at: checkpoint?.server_updated_at || '0',
+                  server_created_at: checkpoint?.server_created_at || '0',
                 },
                 limit: limit || 5,
               },

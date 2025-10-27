@@ -39,7 +39,7 @@ export const PULL_TRANSACTION_QUERY = `
       }
       checkpoint {
         id
-        server_updated_at
+        server_created_at
       }
     }
   }
@@ -64,7 +64,7 @@ export const STREAM_TRANSACTION_SUBSCRIPTION = `
       }
       checkpoint {
         id
-        server_updated_at
+        server_created_at
       }
     }
   }
@@ -79,7 +79,7 @@ input PullTransactionInput {
 
 input CheckpointInput {
   id: String!
-  server_updated_at: String!
+  server_created_at: String!
 }
 
 type PullTransactionResponse {
@@ -89,7 +89,7 @@ type PullTransactionResponse {
 
 type Checkpoint {
   id: String!
-  server_updated_at: String!
+  server_created_at: String!
 }
 
 type Transaction2InputPushRow {
