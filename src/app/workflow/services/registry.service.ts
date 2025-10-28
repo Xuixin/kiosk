@@ -53,11 +53,7 @@ export class RegistryService {
       await this.handshakeService.createHandshake({
         id: hs_id,
         transaction_id: registry.id,
-        handshake: JSON.stringify({
-          server: false,
-          door: false,
-          cloud: false,
-        }),
+        handshake: '',
         events: JSON.stringify([
           {
             type: 'CREATE',
