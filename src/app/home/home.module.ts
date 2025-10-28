@@ -11,6 +11,7 @@ import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 import { InputTextModule } from 'primeng/inputtext';
+import { DoorService } from '../core/Database/facade/door.service';
 
 @NgModule({
   imports: [
@@ -24,5 +25,6 @@ import { InputTextModule } from 'primeng/inputtext';
     InputTextModule,
   ],
   declarations: [HomePage],
+  providers: [DoorService],
 })
 export class HomePageModule {}

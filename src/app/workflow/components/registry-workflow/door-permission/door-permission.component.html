@@ -142,7 +142,10 @@
               >
                 {{ door.name }}
               </div>
-              <div class="mt-1 text-xs text-gray-500 sm:text-sm">
+              <div
+                class="mt-1 text-xs text-gray-500 sm:text-sm"
+                *ngIf="door.description"
+              >
                 {{ door.description }}
               </div>
             </div>

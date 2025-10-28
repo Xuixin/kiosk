@@ -1,13 +1,16 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit, signal } from '@angular/core';
+import { Component, Input, OnInit, signal, computed } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { ButtonModule } from 'primeng/button';
 
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
-import { DoorService, Door } from '../../../../services/door.service';
+import {
+  DoorApiService,
+  DoorDocument,
+} from '../../../../core/Api/grapgql/door.service';
 
-interface DoorWithSelection extends Door {
+interface DoorWithSelection extends DoorDocument {
   selected: boolean;
 }
 
@@ -24,76 +27,53 @@ export class DoorPermissionComponent
 {
   @Input() override data: Record<string, any> = {};
 
-  // Available doors
-  doors = signal<DoorWithSelection[]>([]);
+  // Door data from API
+  private doorData = signal<DoorWithSelection[]>([]);
+
+  // Reactive doors from API
+  doors = computed<DoorWithSelection[]>(() => {
+    return this.doorData();
+  });
+
   loading = signal<boolean>(false);
   loadError = signal<string | null>(null);
 
-  constructor(private doorService: DoorService) {
+  constructor(private doorApiService: DoorApiService) {
     super();
   }
 
-  override async ngOnInit() {
-    try {
-      // Load doors from service
-      await this.loadDoors();
-      // Load existing selections from context
-      this.loadExistingSelections();
-    } catch (error) {
-      console.error('Error in ngOnInit:', error);
-      // Continue with component initialization even if there's an error
-    }
-  }
+  async ngOnInit(): Promise<void> {
+    console.log('DoorPermissionComponent initialized');
 
-  /**
-   * Load doors from GraphQL service
-   */
-  private async loadDoors(): Promise<void> {
     this.loading.set(true);
     this.loadError.set(null);
 
     try {
-      // Check if service is available
-      if (!this.doorService) {
-        throw new Error('Door service is not available');
-      }
+      console.log('🔄 Loading doors from API...');
+      const doors = await this.doorApiService.pullDoors();
 
-      const doors = await this.doorService.getDoors();
+      // Filter out deleted doors
+      const activeDoors = doors.filter((door) => !door.deleted);
 
-      // Transform doors to include selection state
-      const doorsWithSelection: DoorWithSelection[] = doors.map((door) => ({
-        ...door,
-        selected: false,
-      }));
+      console.log('✅ Loaded doors from API:', activeDoors.length);
+      console.log(
+        '🚪 Door data:',
+        activeDoors.map((d) => ({
+          id: d.id,
+          name: d.name,
+          deleted: d.deleted,
+        })),
+      );
 
-      this.doors.set(doorsWithSelection);
+      // Set initial data
+      this.doorData.set(
+        activeDoors.map((door) => ({ ...door, selected: false })),
+      );
     } catch (error) {
-      console.error('Error loading doors:', error);
-      this.loadError.set('ไม่สามารถโหลดข้อมูลประตูได้ กรุณาลองใหม่อีกครั้ง');
+      console.error('❌ Error loading doors from API:', error);
+      this.loadError.set('ไม่สามารถโหลดข้อมูลประตูได้');
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  /**
-   * Load existing door selections from context
-   */
-  private loadExistingSelections(): void {
-    try {
-      const ctx = this.executionContext() as any;
-      if (ctx?.door_permission && Array.isArray(ctx.door_permission)) {
-        const selectedDoorIds = ctx.door_permission;
-
-        this.doors.update((doors) =>
-          doors.map((door) => ({
-            ...door,
-            selected: selectedDoorIds.includes(door.id),
-          })),
-        );
-      }
-    } catch (error) {
-      console.warn('Error loading existing selections:', error);
-      // Continue without loading existing selections
     }
   }
 
@@ -101,8 +81,8 @@ export class DoorPermissionComponent
    * Toggle door selection
    */
   toggleDoor(door: DoorWithSelection): void {
-    this.doors.update((doors) =>
-      doors.map((d) =>
+    this.doorData.update((doors: DoorWithSelection[]) =>
+      doors.map((d: DoorWithSelection) =>
         d.id === door.id ? { ...d, selected: !d.selected } : d,
       ),
     );
@@ -141,15 +121,10 @@ export class DoorPermissionComponent
   }
 
   /**
-   * Retry loading doors
+   * Retry loading doors from API
    */
   async retryLoadDoors(): Promise<void> {
-    try {
-      await this.loadDoors();
-    } catch (error) {
-      console.error('Error retrying load doors:', error);
-      this.loadError.set('ไม่สามารถโหลดข้อมูลประตูได้ กรุณาลองใหม่อีกครั้ง');
-    }
+    await this.ngOnInit();
   }
 
   /**
@@ -165,13 +140,11 @@ export class DoorPermissionComponent
       const ctx = this.executionContext() as any;
       const selectedDoorIds = this.getSelectedDoorIds();
 
-      // Update context with selected doors
       const updatedCtx = RegistryContextHelper.updateDoorPermission(
         ctx,
         selectedDoorIds,
       );
 
-      // Close subflow and return to summary
       await this.closeSubflow(updatedCtx);
     } catch (error) {
       console.error('Error in saveAndClose:', error);

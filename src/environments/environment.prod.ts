@@ -11,6 +11,7 @@ export const environment = {
   wsUrl: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
+  clientName: 'KIOSK-123',
   addRxDBPlugins() {},
   getRxStorage() {
     return getRxStorageSQLiteTrial({

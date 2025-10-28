@@ -5,13 +5,15 @@ import {
   ChangeDetectorRef,
   inject,
   computed,
+  effect,
 } from '@angular/core';
 import { FlowControllerService } from '../flow-services/flow-controller.service';
-import { TransactionService } from '../core/Database/facade';
+import { DoorService, TransactionService } from '../core/Database/facade';
 import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
+import { DatabaseService } from '../core/Database/rxdb.service';
 
 @Component({
   selector: 'app-home',
@@ -33,7 +35,7 @@ export class HomePage implements OnInit, OnDestroy {
 
   private timeInterval?: any;
 
-  constructor() {
+  constructor(private dbService: DatabaseService) {
     console.log('HomePage constructor');
 
     this.timeInterval = setInterval(() => {

@@ -268,12 +268,11 @@ export class RegistryWalkinSummaryComponent
   }
 
   async submitRegistration(): Promise<void> {
-    try {
-      const ctx = this.registryContext;
+    const ctx = this.registryContext;
 
-      // Show loading state
-      const loadingAlert = document.createElement('div');
-      loadingAlert.innerHTML = `
+    // Show loading state
+    const loadingAlert = document.createElement('div');
+    loadingAlert.innerHTML = `
         <div style="
           position: fixed;
           top: 50%;
@@ -308,40 +307,44 @@ export class RegistryWalkinSummaryComponent
           }
         </style>
       `;
-      document.body.appendChild(loadingAlert);
+    document.body.appendChild(loadingAlert);
 
-      const cid = UUIDUtils.generateTxnId();
+    const cid = UUIDUtils.generateTxnId();
 
-      console.log('[submitRegistration] ctx', ctx);
+    console.log('[submitRegistration] ctx', ctx);
 
-      const data: RegistryTransaction = {
-        id: cid,
-        name: ctx.user.name,
-        id_card_base64: ctx.user.id_card_base64,
-        student_number: ctx.user.student_number,
-        register_type: ctx.register_type,
-        door_permission: Array.isArray(ctx.door_permission)
-          ? ctx.door_permission.join(',')
-          : ctx.door_permission,
-        status: 'IN',
-        client_created_at: Date.now().toString(),
-      };
+    const data: RegistryTransaction = {
+      id: cid,
+      name: ctx.user.name,
+      id_card_base64: ctx.user.id_card_base64,
+      student_number: ctx.user.student_number,
+      register_type: ctx.register_type,
+      door_permission: Array.isArray(ctx.door_permission)
+        ? ctx.door_permission.join(',')
+        : ctx.door_permission,
+      status: 'IN',
+      client_created_at: Date.now().toString(),
+    };
 
+    try {
       // Submit to storage
       const result = await this.registryService.submitRegistration(data);
 
       console.log('[RegistrySummary] Submit result:', result);
 
-      // Remove loading alert
-      document.body.removeChild(loadingAlert);
+      if (result.success && result.transaction) {
+        const fullName = result.transaction.name || 'ไม่ระบุ';
+        alert(
+          `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction.status}`,
+        );
 
-      const fullName = result.transaction?.user.name || 'ไม่ระบุ';
-      alert(
-        `✅ บันทึกการลงทะเบียนสำเร็จ!\n\nหมายเลข Ticket: ${result.transaction?.id}\nชื่อ: ${fullName}\nสถานะ: ${result.transaction?.status}`,
-      );
-
-      // Close workflow
-      await this.closeWorkflow();
+        // Close workflow
+        await this.closeWorkflow();
+      } else {
+        alert(
+          `❌ เกิดข้อผิดพลาดในการบันทึก:\n\n${result.error || 'Unknown error'}`,
+        );
+      }
     } catch (error) {
       console.error('Error in submitRegistration:', error);
       alert(
@@ -349,6 +352,11 @@ export class RegistryWalkinSummaryComponent
           error instanceof Error ? error.message : 'Unknown error'
         }`,
       );
+    } finally {
+      // Remove loading alert
+      if (document.body.contains(loadingAlert)) {
+        document.body.removeChild(loadingAlert);
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import { Injector, Injectable, Signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { environment } from '../../../environments/environment';
-import { TXN_SCHEMA, HANDSHAKE_SCHEMA } from '../schema';
+import { TXN_SCHEMA, HANDSHAKE_SCHEMA, DOOR_SCHEMA } from '../schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
 
@@ -10,6 +10,7 @@ import { RxTxnsCollections, RxTxnsDatabase } from './RxDB.D';
 import {
   TransactionReplicationService,
   HandshakeReplicationService,
+  DoorReplicationService,
 } from './replication';
 import { NetworkStatusService } from './network-status.service';
 
@@ -24,9 +25,29 @@ const collectionsSettings = {
   handshake: {
     schema: HANDSHAKE_SCHEMA as any,
   },
+  door: {
+    schema: DOOR_SCHEMA as any,
+  },
 };
 
 let GLOBAL_DB_SERVICE: DatabaseService | undefined;
+
+// Export for debugging in console
+(window as any).debugRxDB = () => {
+  console.log('DB_INSTANCE:', DB_INSTANCE);
+  console.log('GLOBAL_DB_SERVICE:', GLOBAL_DB_SERVICE);
+  if (DB_INSTANCE) {
+    console.log('Collections:', Object.keys(DB_INSTANCE.collections));
+    console.log('Door collection:', DB_INSTANCE.door);
+    DB_INSTANCE.door
+      .find()
+      .exec()
+      .then((docs) => {
+        console.log('Doors found:', docs.length);
+        docs.forEach((doc) => console.log('Door:', doc.toJSON()));
+      });
+  }
+};
 
 async function _create(injector: Injector): Promise<RxTxnsDatabase> {
   environment.addRxDBPlugins();
@@ -92,12 +113,16 @@ export async function initDatabase(injector: Injector) {
       const handshakeReplicationService = new HandshakeReplicationService(
         networkStatusService,
       );
+      const doorReplicationService = new DoorReplicationService(
+        networkStatusService,
+      );
 
       // Set replication services in database service
       GLOBAL_DB_SERVICE?.setReplicationService(transactionReplicationService);
       GLOBAL_DB_SERVICE?.setHandshakeReplicationService(
         handshakeReplicationService,
       );
+      GLOBAL_DB_SERVICE?.setDoorReplicationService(doorReplicationService);
 
       // Register replications
       const txnReplication =
@@ -111,6 +136,11 @@ export async function initDatabase(injector: Injector) {
           db.handshake as any,
           'handshake-graphql-replication',
         );
+
+      const doorReplication = await doorReplicationService.register_replication(
+        db.door as any,
+        'door-graphql-replication',
+      );
 
       if (txnReplication) {
         console.log('DatabaseService: Transaction replication started');
@@ -127,6 +157,14 @@ export async function initDatabase(injector: Injector) {
           'DatabaseService: Handshake replication not started (offline or error)',
         );
       }
+
+      if (doorReplication) {
+        console.log('DatabaseService: Door replication started');
+      } else {
+        console.log(
+          'DatabaseService: Door replication not started (offline or error)',
+        );
+      }
     });
   }
   await initState;
@@ -136,6 +174,7 @@ export async function initDatabase(injector: Injector) {
 export class DatabaseService {
   private transactionReplicationService?: TransactionReplicationService;
   private handshakeReplicationService?: HandshakeReplicationService;
+  private doorReplicationService?: DoorReplicationService;
 
   constructor() {
     GLOBAL_DB_SERVICE = this;
@@ -149,7 +188,16 @@ export class DatabaseService {
     this.handshakeReplicationService = service;
   }
 
+  setDoorReplicationService(service: DoorReplicationService) {
+    this.doorReplicationService = service;
+  }
+
   get db(): RxTxnsDatabase {
+    if (!DB_INSTANCE) {
+      throw new Error(
+        'Database not initialized yet. Make sure APP_INITIALIZER has completed.',
+      );
+    }
     return DB_INSTANCE;
   }
 
@@ -167,6 +215,11 @@ export class DatabaseService {
       console.log('Handshake replication stopped');
     }
 
+    if (this.doorReplicationService) {
+      await this.doorReplicationService.stopReplication();
+      console.log('Door replication stopped');
+    }
+
     console.log('All GraphQL replications stopped');
   }
 
@@ -178,6 +231,7 @@ export class DatabaseService {
       this.transactionReplicationService?.getOnlineStatus() ?? false;
     const handshakeStatus =
       this.handshakeReplicationService?.getOnlineStatus() ?? false;
-    return txnStatus || handshakeStatus;
+    const doorStatus = this.doorReplicationService?.getOnlineStatus() ?? false;
+    return txnStatus || handshakeStatus || doorStatus;
   }
 }

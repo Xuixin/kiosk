@@ -5,17 +5,17 @@ import { RxCollection } from 'rxdb';
 import { environment } from 'src/environments/environment';
 import { NetworkStatusService } from '../network-status.service';
 import { BaseReplicationService } from './base-replication.service';
-import { HandshakeDocument } from '../../schema';
-import { handshakeQueryBuilder } from '../query-builder/handshake-query-builder';
+import { DoorDocument } from '../../schema/door.schema';
+import { doorQueryBuilder } from '../query-builder/door-query-builder';
 
 /**
- * Handshake-specific GraphQL replication service
- * Extends BaseReplicationService for handshake collection replication
+ * Door-specific GraphQL replication service
+ * Extends BaseReplicationService for door collection replication
  */
 @Injectable({
   providedIn: 'root',
 })
-export class HandshakeReplicationService extends BaseReplicationService<HandshakeDocument> {
+export class DoorReplicationService extends BaseReplicationService<DoorDocument> {
   private graphqlEndpoint: string = environment.apiUrl;
   private graphqlWsEndpoint: string = environment.wsUrl;
 
@@ -24,12 +24,12 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
   }
 
   /**
-   * Setup handshake-specific GraphQL replication
+   * Setup door-specific GraphQL replication
    */
   protected async setupReplication(
     collection: RxCollection,
-  ): Promise<RxGraphQLReplicationState<HandshakeDocument, any> | undefined> {
-    console.log('Setting up Handshake GraphQL replication...');
+  ): Promise<RxGraphQLReplicationState<DoorDocument, any> | undefined> {
+    console.log('Setting up Door GraphQL replication...');
 
     // Check if app is online before starting replication
     if (!this.networkStatus.isOnline()) {
@@ -40,10 +40,10 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
       return undefined;
     }
 
-    this.replicationState = replicateGraphQL<HandshakeDocument, any>({
+    this.replicationState = replicateGraphQL<DoorDocument, any>({
       collection: collection as any,
       replicationIdentifier:
-        this.replicationIdentifier || 'handshake-graphql-replication',
+        this.replicationIdentifier || 'door-graphql-replication',
       url: {
         http: this.graphqlEndpoint,
         ws: this.graphqlWsEndpoint,
@@ -52,10 +52,10 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
       pull: {
         batchSize: 10,
         queryBuilder: (checkpoint, limit) => {
-          console.log('🔵 Pull Query - checkpoint:', checkpoint);
+          console.log('🔵 Pull Door Query - checkpoint:', checkpoint);
 
           return {
-            query: handshakeQueryBuilder.getPullQuery(),
+            query: doorQueryBuilder.getPullQuery(),
             variables: {
               input: {
                 checkpoint: {
@@ -69,20 +69,20 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
         },
 
         streamQueryBuilder: (headers) => {
-          console.log('🔄 Stream Query - headers:', headers);
+          console.log('🔄 Stream Door Query - headers:', headers);
 
           return {
-            query: handshakeQueryBuilder.getStreamSubscription() || '',
+            query: doorQueryBuilder.getStreamSubscription() || '',
             variables: {},
           };
         },
 
         responseModifier: (plainResponse) => {
-          console.log('🟢 Full Response:', plainResponse);
+          console.log('🟢 Door Full Response:', plainResponse);
 
           const pullData =
-            plainResponse.pullHandshake ||
-            plainResponse.streamHandshake ||
+            plainResponse.pullDoors ||
+            plainResponse.streamDoor ||
             plainResponse;
           const documents = pullData.documents || [];
           const checkpoint = pullData.checkpoint;
@@ -94,8 +94,14 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
         },
 
         modifier: (doc) => {
-          return doc
-
+          // Filter out deleted doors
+          if (doc.deleted) {
+            return {
+              ...doc,
+              _deleted: true,
+            };
+          }
+          return doc;
         },
       },
 
@@ -106,35 +112,34 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
             return {
               newDocumentState: {
                 id: doc.id,
-                transaction_id: doc.transaction_id || doc.txn_id,
-                handshake:
-                  doc.handshake || doc.state || '{"server":false,"door":false}',
-                events: doc.events,
+                name: doc.name,
+                max_persons: doc.max_persons,
+                status: doc.status,
                 client_created_at:
                   doc.client_created_at || Date.now().toString(),
                 client_updated_at:
                   doc.client_updated_at || Date.now().toString(),
                 server_created_at: doc.server_created_at,
                 server_updated_at: doc.server_updated_at,
-                diff_time_create: doc.diff_time_create || '0',
-                diff_time_update: doc.diff_time_update || '0',
                 deleted: docRow.assumedMasterState === null,
               },
             };
           });
 
           return {
-            query: handshakeQueryBuilder.getPushMutation(),
+            query: doorQueryBuilder.getPushMutation(),
             variables: {
               writeRows,
             },
           };
         },
 
-        dataPath: 'data.pushHandshake',
+        dataPath: 'data.pushDoors',
 
         modifier: (doc) => doc,
       },
+
+      deletedField: 'deleted',
 
       live: true,
       retryTime: 60000,
@@ -144,19 +149,19 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
 
     if (this.replicationState) {
       this.replicationState.error$.subscribe((error) => {
-        console.error('Handshake Replication error:', error);
+        console.error('Door Replication error:', error);
       });
 
       this.replicationState.received$.subscribe((received) => {
-        console.log('Handshake Replication received:', received);
+        console.log('Door Replication received:', received);
       });
 
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('Handshake Replication sent:', sent);
+        console.log('Door Replication sent:', sent);
       });
 
       await this.replicationState.awaitInitialReplication();
-      console.log('Initial handshake replication completed');
+      console.log('Initial door replication completed');
     }
 
     return this.replicationState;

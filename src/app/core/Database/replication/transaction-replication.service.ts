@@ -157,6 +157,8 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
                   doc.client_updated_at || Date.now().toString(),
                 server_created_at: doc.server_created_at,
                 server_updated_at: doc.server_updated_at,
+                diff_time_create: doc.diff_time_create || '0',
+                diff_time_update: doc.diff_time_update || '0',
                 deleted: docRow.assumedMasterState === null,
               },
             };
