@@ -1,4 +1,4 @@
-import { RxTxnDocumentType } from '../../schema/txn.schema';
+import { RxTxnDocumentType } from '../../schema';
 
 // GraphQL Mutation สำหรับ Push Transaction
 export const PUSH_TRANSACTION_MUTATION = `

@@ -1,96 +1,45 @@
-// graphql-replication.service.ts
 import { Injectable } from '@angular/core';
 import { replicateGraphQL } from 'rxdb/plugins/replication-graphql';
 import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
-import { RxTxnCollection, RxTxnDocument } from './RxDB.D';
-import { RxTxnDocumentType } from '../schema/txn.schema';
+import { RxCollection } from 'rxdb';
+import { RxTxnCollection } from '../RxDB.D';
+import { RxTxnDocumentType } from '../../schema';
 import { environment } from 'src/environments/environment';
+import { NetworkStatusService } from '../network-status.service';
+import { BaseReplicationService } from './base-replication.service';
 import {
   PUSH_TRANSACTION_MUTATION,
   PULL_TRANSACTION_QUERY,
   STREAM_TRANSACTION_SUBSCRIPTION,
-} from './query-builder/txn-query-builder';
+} from '../query-builder/txn-query-builder';
 
+/**
+ * Transaction-specific GraphQL replication service
+ * Extends BaseReplicationService for transaction collection replication
+ */
 @Injectable({
   providedIn: 'root',
 })
-export class GraphQLReplicationService {
-  public replicationState?: RxGraphQLReplicationState<RxTxnDocumentType, any>;
+export class TransactionReplicationService extends BaseReplicationService<RxTxnDocumentType> {
   private graphqlEndpoint: string = environment.apiUrl;
   private graphqlWsEndpoint: string = environment.wsUrl;
-  private activeSocket: any;
-  private timedOut: any = 1000;
-  private isOnline: boolean = navigator.onLine;
-  private onlineHandler: () => void;
-  private offlineHandler: () => void;
-  private collection?: RxTxnCollection;
 
-  constructor() {
-    // Set up online/offline event listeners
-    this.onlineHandler = () => this.handleOnline();
-    this.offlineHandler = () => this.handleOffline();
-
-    window.addEventListener('online', this.onlineHandler);
-    window.addEventListener('offline', this.offlineHandler);
-
-    // Check initial state
-    this.isOnline = navigator.onLine;
-    if (!this.isOnline) {
-      console.log('⚠️ Application is offline');
-    }
+  constructor(networkStatus: NetworkStatusService) {
+    super(networkStatus);
   }
 
   /**
-   * Handle going online
+   * Setup transaction-specific GraphQL replication
    */
-  private async handleOnline() {
-    if (!this.isOnline) {
-      this.isOnline = true;
-      console.log('🌐 Application is now online');
-
-      // Restart replication if collection exists
-      if (this.collection && !this.replicationState) {
-        console.log('🔄 Restarting replication after coming online...');
-        try {
-          await this.setupReplication(this.collection);
-          console.log('✅ Replication restarted successfully');
-        } catch (error) {
-          console.error('❌ Failed to restart replication:', error);
-        }
-      }
-    }
-  }
-
-  /**
-   * Handle going offline
-   */
-  private async handleOffline() {
-    if (this.isOnline) {
-      this.isOnline = false;
-      console.log('⚠️ Application is now offline - stopping replication');
-
-      // Stop replication
-      if (this.replicationState) {
-        await this.replicationState.cancel();
-        this.replicationState = undefined; // Clear state so it can be restarted when online
-        console.log('✅ Replication stopped due to offline status');
-      }
-    }
-  }
-
-  /**
-   * เริ่มต้น GraphQL Replication
-   */
-  async setupReplication(
-    collection: RxTxnCollection,
+  protected async setupReplication(
+    collection: RxCollection,
   ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any> | undefined> {
-    console.log('Setting up GraphQL replication...');
+    const txnCollection = collection as unknown as RxTxnCollection;
 
-    // Store collection reference for potential restart
-    this.collection = collection;
+    console.log('Setting up Transaction GraphQL replication...');
 
     // Check if app is online before starting replication
-    if (!this.isOnline) {
+    if (!this.networkStatus.isOnline()) {
       console.log('⚠️ Application is offline - replication setup skipped');
       console.log(
         '📝 Replication will start automatically when connection is restored',
@@ -99,8 +48,9 @@ export class GraphQLReplicationService {
     }
 
     this.replicationState = replicateGraphQL<RxTxnDocumentType, any>({
-      collection,
-      replicationIdentifier: 'txn-graphql-replication',
+      collection: txnCollection as any,
+      replicationIdentifier:
+        this.replicationIdentifier || 'txn-graphql-replication',
       url: {
         http: this.graphqlEndpoint,
         ws: this.graphqlWsEndpoint,
@@ -149,12 +99,6 @@ export class GraphQLReplicationService {
 
           // const filteredDocs = documents.filter((d: any) => d.status !== 'OUT');
 
-          console.log('📊 Pull Summary:', {
-            documentsCount: documents.length,
-            checkpoint: checkpoint,
-            requestCheckpoint: requestCheckpoint,
-          });
-
           // ✅ Return ข้อมูลจริง
           return {
             documents: documents,
@@ -163,7 +107,6 @@ export class GraphQLReplicationService {
         },
 
         modifier: (doc) => {
-          // // ❌ ถ้า status = 'OUT' จะไม่บันทึก
           if (doc.status === 'OUT') {
             return {
               ...doc,
@@ -185,6 +128,7 @@ export class GraphQLReplicationService {
             return {
               client_id: 'kiosk-1',
               client_type: 'kiosk',
+              doorId: 'kiosk',
             };
           },
 
@@ -245,44 +189,22 @@ export class GraphQLReplicationService {
 
     if (this.replicationState) {
       this.replicationState.error$.subscribe((error) => {
-        console.error('Replication error:', error);
+        console.error('Transaction Replication error:', error);
       });
 
       // เพิ่ม logging สำหรับ pull events
       this.replicationState.received$.subscribe((received) => {
-        console.log('Replication received:', received);
+        console.log('Transaction Replication received:', received);
       });
 
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('Replication sent:', sent);
+        console.log('Transaction Replication sent:', sent);
       });
 
       await this.replicationState.awaitInitialReplication();
-      console.log('Initial replication completed');
+      console.log('Initial transaction replication completed');
     }
 
     return this.replicationState;
-  }
-
-  /**
-   * หยุด replication
-   */
-  async stopReplication() {
-    if (this.replicationState) {
-      await this.replicationState.cancel();
-      this.replicationState = undefined;
-      console.log('Replication stopped');
-    }
-
-    // Clean up event listeners
-    window.removeEventListener('online', this.onlineHandler);
-    window.removeEventListener('offline', this.offlineHandler);
-  }
-
-  /**
-   * เช็คสถานะการเชื่อมต่อ
-   */
-  getOnlineStatus(): boolean {
-    return this.isOnline;
   }
 }

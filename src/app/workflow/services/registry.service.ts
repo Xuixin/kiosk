@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { RegistryContext } from '../helpers/registry-context.helper';
 import { DatabaseService } from 'src/app/core/Database/rxdb.service';
-import { RxTxnDocumentType } from 'src/app/core/schema/txn.schema';
+import { RxTxnDocumentType } from 'src/app/core/schema';
 
 export interface RegistryTransaction {
   id: string;

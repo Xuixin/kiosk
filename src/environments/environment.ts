@@ -12,6 +12,7 @@ export const environment = {
   wsUrl: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
+  
   addRxDBPlugins() {},
   getRxStorage() {
     // Check if running on native platform

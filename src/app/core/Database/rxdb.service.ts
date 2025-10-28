@@ -2,12 +2,16 @@ import { Injector, Injectable, Signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { environment } from '../../../environments/environment';
-import { TXN_SCHEMA } from '../schema/txn.schema';
+import { TXN_SCHEMA, HANDSHAKE_SCHEMA } from '../schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
 
 import { RxTxnsCollections, RxTxnsDatabase } from './RxDB.D';
-import { GraphQLReplicationService } from './graphql-replication.service';
+import {
+  TransactionReplicationService,
+  HandshakeReplicationService,
+} from './replication';
+import { NetworkStatusService } from './network-status.service';
 
 environment.addRxDBPlugins();
 
@@ -16,6 +20,9 @@ const DATABASE_NAME = 'kiosk_db';
 const collectionsSettings = {
   txn: {
     schema: TXN_SCHEMA as any,
+  },
+  handshake: {
+    schema: HANDSHAKE_SCHEMA as any,
   },
 };
 
@@ -73,20 +80,53 @@ export async function initDatabase(injector: Injector) {
 
   if (!initState) {
     console.log('initDatabase()');
-    initState = _create(injector).then((db) => {
+    initState = _create(injector).then(async (db) => {
       DB_INSTANCE = db;
       // สร้าง replication หลังจากสร้าง database แล้ว
-      const replicationService = new GraphQLReplicationService();
-      GLOBAL_DB_SERVICE?.setReplicationService(replicationService);
-      replicationService.setupReplication(db.txn).then((replicationState) => {
-        if (replicationState) {
-          console.log('DatabaseService: replication started');
-        } else {
-          console.log(
-            'DatabaseService: replication not started (offline or error)',
-          );
-        }
-      });
+      const networkStatusService = new NetworkStatusService();
+
+      // Initialize replication services for all collections
+      const transactionReplicationService = new TransactionReplicationService(
+        networkStatusService,
+      );
+      const handshakeReplicationService = new HandshakeReplicationService(
+        networkStatusService,
+      );
+
+      // Set replication services in database service
+      GLOBAL_DB_SERVICE?.setReplicationService(transactionReplicationService);
+      GLOBAL_DB_SERVICE?.setHandshakeReplicationService(
+        handshakeReplicationService,
+      );
+
+      // Register replications
+      const txnReplication =
+        await transactionReplicationService.register_replication(
+          db.txn as any,
+          'txn-graphql-replication',
+        );
+
+      const handshakeReplication =
+        await handshakeReplicationService.register_replication(
+          db.handshake as any,
+          'handshake-graphql-replication',
+        );
+
+      if (txnReplication) {
+        console.log('DatabaseService: Transaction replication started');
+      } else {
+        console.log(
+          'DatabaseService: Transaction replication not started (offline or error)',
+        );
+      }
+
+      if (handshakeReplication) {
+        console.log('DatabaseService: Handshake replication started');
+      } else {
+        console.log(
+          'DatabaseService: Handshake replication not started (offline or error)',
+        );
+      }
     });
   }
   await initState;
@@ -94,14 +134,19 @@ export async function initDatabase(injector: Injector) {
 
 @Injectable()
 export class DatabaseService {
-  private replicationService?: GraphQLReplicationService;
+  private transactionReplicationService?: TransactionReplicationService;
+  private handshakeReplicationService?: HandshakeReplicationService;
 
   constructor() {
     GLOBAL_DB_SERVICE = this;
   }
 
-  setReplicationService(service: GraphQLReplicationService) {
-    this.replicationService = service;
+  setReplicationService(service: TransactionReplicationService) {
+    this.transactionReplicationService = service;
+  }
+
+  setHandshakeReplicationService(service: HandshakeReplicationService) {
+    this.handshakeReplicationService = service;
   }
 
   get db(): RxTxnsDatabase {
@@ -109,19 +154,30 @@ export class DatabaseService {
   }
 
   /**
-   * หยุด replication
+   * หยุด replication ทั้งหมด
    */
   async stopReplication() {
-    if (this.replicationService) {
-      await this.replicationService.stopReplication();
-      console.log('GraphQL replication stopped');
+    if (this.transactionReplicationService) {
+      await this.transactionReplicationService.stopReplication();
+      console.log('Transaction replication stopped');
     }
+
+    if (this.handshakeReplicationService) {
+      await this.handshakeReplicationService.stopReplication();
+      console.log('Handshake replication stopped');
+    }
+
+    console.log('All GraphQL replications stopped');
   }
 
   /**
    * เช็คสถานะการเชื่อมต่อ
    */
   getOnlineStatus(): boolean {
-    return this.replicationService?.getOnlineStatus() ?? false;
+    const txnStatus =
+      this.transactionReplicationService?.getOnlineStatus() ?? false;
+    const handshakeStatus =
+      this.handshakeReplicationService?.getOnlineStatus() ?? false;
+    return txnStatus || handshakeStatus;
   }
 }

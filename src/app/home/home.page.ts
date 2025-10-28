@@ -7,12 +7,11 @@ import {
   computed,
 } from '@angular/core';
 import { FlowControllerService } from '../flow-services/flow-controller.service';
-import { TransactionService } from '../services/transaction.service';
+import { TransactionService } from '../core/Database/facade';
 import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
-import { DatabaseService } from '../core/Database/rxdb.service';
 
 @Component({
   selector: 'app-home',
@@ -29,22 +28,12 @@ export class HomePage implements OnInit, OnDestroy {
   private readonly transactionService = inject(TransactionService);
   private readonly cdr = inject(ChangeDetectorRef);
 
-  // Signals from service
-  public readonly transactions = this.transactionService.transactions;
-  public readonly stats = this.transactionService.stats;
-  public readonly recentTransactions =
-    this.transactionService.recentTransactions;
-
   // Computed properties for template
-  public readonly totalCount = computed(() => this.stats().total);
-  public readonly pendingCount = computed(() => this.stats().pending);
-  public readonly inCount = computed(() => this.stats().in);
-  public readonly outCount = computed(() => this.stats().out);
+  public readonly inCount = computed(() => this.transactionService.stats().in);
 
   private timeInterval?: any;
-  id: any;
 
-  constructor(private readonly dbService: DatabaseService) {
+  constructor() {
     console.log('HomePage constructor');
 
     this.timeInterval = setInterval(() => {
@@ -53,17 +42,7 @@ export class HomePage implements OnInit, OnDestroy {
     }, 60000);
   }
 
-  ngOnInit() {
-    console.log('HomePage initialized with reactive signals');
-    console.log('Initial transactions:', this.transactions().length);
-    console.log('Initial stats:', this.stats());
-  }
-
-  async out() {
-    const id = this.id;
-
-
-  }
+  ngOnInit() {}
 
   ngOnDestroy() {
     if (this.timeInterval) {
