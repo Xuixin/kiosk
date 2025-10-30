@@ -6,6 +6,7 @@ import { RxTxnCollection } from '../RxDB.D';
 import { RxTxnDocumentType } from '../../schema';
 import { environment } from 'src/environments/environment';
 import { NetworkStatusService } from '../network-status.service';
+import { ClientIdentityService } from '../../identity/client-identity.service';
 import { BaseReplicationService } from './base-replication.service';
 import {
   PUSH_TRANSACTION_MUTATION,
@@ -24,7 +25,10 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
   private graphqlEndpoint: string = environment.apiUrl;
   private graphqlWsEndpoint: string = environment.wsUrl;
 
-  constructor(networkStatus: NetworkStatusService) {
+  constructor(
+    networkStatus: NetworkStatusService,
+    private readonly identity: ClientIdentityService,
+  ) {
     super(networkStatus);
   }
 
@@ -124,11 +128,13 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
         },
 
         wsOptions: {
-          connectionParams: () => {
+          connectionParams: async () => {
+            const client_id = await this.identity.getClientId();
+            const client_type = this.identity.getClientType();
             return {
-              client_id: 'kiosk-1',
-              client_type: 'kiosk',
-              doorId: 'kiosk',
+              client_id,
+              client_type,
+              doorId: client_type,
             };
           },
 
@@ -190,8 +196,23 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     });
 
     if (this.replicationState) {
-      this.replicationState.error$.subscribe((error) => {
-        console.error('Transaction Replication error:', error);
+      // transaction-replication.service.ts
+      this.replicationState.error$.subscribe(async (err: any) => {
+        // สนใจเฉพาะ push เท่านั้น และต้องมี pushRows แนบมา
+        if (!err || err.direction !== 'push' || !Array.isArray(err.pushRows))
+          return;
+
+        for (const row of err.pushRows) {
+          const rejected = row?.newDocumentState;
+          const id = rejected?.id;
+          if (!id) continue;
+
+          const doc = await this.collection!.findOne(id).exec();
+          if (!doc) continue;
+
+          // ทางเลือก B (ถ้าต้องการให้หายไปจากคิว sync ทันที): soft-delete
+          await doc.remove();
+        }
       });
 
       // เพิ่ม logging สำหรับ pull events

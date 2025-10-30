@@ -52,13 +52,11 @@ export class RegistryService {
         id: hs_id,
         transaction_id: registry.id,
         handshake: '',
-        events: JSON.stringify(
-          {
-            type: 'CREATE',
-            at: Date.now().toString(),
-            actor: environment.clientName,
-          },
-        ),
+        events: JSON.stringify({
+          type: 'CREATE',
+          at: Date.now().toString(),
+          actor: (environment as any).clientType,
+        }),
       } as unknown as HandshakeDocument);
 
       return {

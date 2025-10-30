@@ -16,8 +16,10 @@ import {
   TransactionReplicationService,
   HandshakeReplicationService,
   DoorReplicationService,
+  LogClientReplicationService,
 } from './replication';
 import { NetworkStatusService } from './network-status.service';
+import { ClientIdentityService } from '../identity/client-identity.service';
 
 environment.addRxDBPlugins();
 
@@ -78,6 +80,12 @@ async function _create(injector: Injector): Promise<RxTxnsDatabase> {
     storage: environment.getRxStorage(),
     multiInstance: environment.multiInstance,
     reactivity: reactivityFactory,
+    cleanupPolicy: {
+      minimumDeletedTime: 1000 * 60 * 5, // 5 minutes
+      runEach: 1000 * 60 * 5, // 5 minutes
+      waitForLeadership: true,
+      awaitReplicationsInSync: true,
+    },
   })) as RxTxnsDatabase;
 
   console.log('DatabaseService: created database');
@@ -107,6 +115,8 @@ export async function initDatabase(injector: Injector) {
     throw new Error('initDatabase() injector missing');
   }
 
+  const identityService = injector.get(ClientIdentityService);
+
   if (!initState) {
     console.log('initDatabase()');
     initState = _create(injector).then(async (db) => {
@@ -117,12 +127,17 @@ export async function initDatabase(injector: Injector) {
       // Initialize replication services for all collections
       const transactionReplicationService = new TransactionReplicationService(
         networkStatusService,
+        identityService,
       );
       const handshakeReplicationService = new HandshakeReplicationService(
         networkStatusService,
       );
       const doorReplicationService = new DoorReplicationService(
         networkStatusService,
+      );
+      const logClientReplicationService = new LogClientReplicationService(
+        networkStatusService,
+        identityService,
       );
 
       // Set replication services in database service
@@ -131,6 +146,9 @@ export async function initDatabase(injector: Injector) {
         handshakeReplicationService,
       );
       GLOBAL_DB_SERVICE?.setDoorReplicationService(doorReplicationService);
+      GLOBAL_DB_SERVICE?.setLogClientReplicationService(
+        logClientReplicationService,
+      );
 
       // Register replications
       const txnReplication =
@@ -149,6 +167,12 @@ export async function initDatabase(injector: Injector) {
         db.door as any,
         'door-graphql-replication',
       );
+
+      const logClientReplication =
+        await logClientReplicationService.register_replication(
+          db.log_client as any,
+          'log-client-graphql-replication',
+        );
 
       if (txnReplication) {
         console.log('DatabaseService: Transaction replication started');
@@ -173,6 +197,14 @@ export async function initDatabase(injector: Injector) {
           'DatabaseService: Door replication not started (offline or error)',
         );
       }
+
+      if (logClientReplication) {
+        console.log('DatabaseService: LogClient replication started');
+      } else {
+        console.log(
+          'DatabaseService: LogClient replication not started (offline or error)',
+        );
+      }
     });
   }
   await initState;
@@ -183,6 +215,7 @@ export class DatabaseService {
   private transactionReplicationService?: TransactionReplicationService;
   private handshakeReplicationService?: HandshakeReplicationService;
   private doorReplicationService?: DoorReplicationService;
+  private logClientReplicationService?: LogClientReplicationService;
 
   constructor() {
     GLOBAL_DB_SERVICE = this;
@@ -198,6 +231,10 @@ export class DatabaseService {
 
   setDoorReplicationService(service: DoorReplicationService) {
     this.doorReplicationService = service;
+  }
+
+  setLogClientReplicationService(service: LogClientReplicationService) {
+    this.logClientReplicationService = service;
   }
 
   get db(): RxTxnsDatabase {
@@ -228,6 +265,11 @@ export class DatabaseService {
       console.log('Door replication stopped');
     }
 
+    if (this.logClientReplicationService) {
+      await this.logClientReplicationService.stopReplication();
+      console.log('LogClient replication stopped');
+    }
+
     console.log('All GraphQL replications stopped');
   }
 
@@ -240,6 +282,8 @@ export class DatabaseService {
     const handshakeStatus =
       this.handshakeReplicationService?.getOnlineStatus() ?? false;
     const doorStatus = this.doorReplicationService?.getOnlineStatus() ?? false;
-    return txnStatus || handshakeStatus || doorStatus;
+    const logClientStatus =
+      this.logClientReplicationService?.getOnlineStatus() ?? false;
+    return txnStatus || handshakeStatus || doorStatus || logClientStatus;
   }
 }

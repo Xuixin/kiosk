@@ -10,6 +10,7 @@ export interface LogClientDocument {
   meta_data: string; // free-form message or JSON string
   server_created_at?: string | '';
   client_created_at: string; // Date.now().toString()
+  server_updated_at?: string | '';
   diff_time_create?: number | '';
 }
 
@@ -28,6 +29,7 @@ export const LOG_CLIENT_SCHEMA_LITERAL: RxJsonSchema<LogClientDocument> = {
     meta_data: { type: 'string', maxLength: 4000 },
     server_created_at: { type: 'string', maxLength: 30 },
     client_created_at: { type: 'string', maxLength: 30 },
+    server_updated_at: { type: 'string', maxLength: 30 },
     diff_time_create: { type: ['number', 'string'] },
   },
   required: [
