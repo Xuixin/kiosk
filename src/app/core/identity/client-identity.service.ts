@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from 'src/environments/environment';
+import { Preferences } from '@capacitor/preferences';
 
 const CLIENT_ID_KEY = 'client_id';
 
@@ -14,10 +15,11 @@ export class ClientIdentityService {
   async getClientId(): Promise<string> {
     if (this.cachedId) return this.cachedId;
 
-    let id = localStorage.getItem(CLIENT_ID_KEY);
+    const { value } = await Preferences.get({ key: CLIENT_ID_KEY });
+    let id = value;
     if (!id) {
       id = crypto.randomUUID();
-      localStorage.setItem(CLIENT_ID_KEY, id);
+      await Preferences.set({ key: CLIENT_ID_KEY, value: id });
     }
     this.cachedId = id;
     return id;

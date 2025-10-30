@@ -94,8 +94,7 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
         },
 
         modifier: (doc) => {
-          return doc
-
+          return doc;
         },
       },
 
@@ -107,8 +106,7 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
               newDocumentState: {
                 id: doc.id,
                 transaction_id: doc.transaction_id || doc.txn_id,
-                handshake:
-                  doc.handshake || doc.state || '{"server":false,"door":false}',
+                handshake: doc.handshake || doc.state || '',
                 events: doc.events,
                 client_created_at:
                   doc.client_created_at || Date.now().toString(),
