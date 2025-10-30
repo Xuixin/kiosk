@@ -139,7 +139,6 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
         modifier: (doc) => doc,
       },
 
-      deletedField: 'deleted',
 
       live: true,
       retryTime: 60000,

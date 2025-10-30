@@ -10,7 +10,6 @@ export interface DoorDocument {
   client_updated_at: string;
   server_created_at?: string;
   server_updated_at?: string;
-  deleted?: boolean;
 }
 
 export const DOOR_SCHEMA_LITERAL: RxJsonSchema<DoorDocument> = {
@@ -30,7 +29,6 @@ export const DOOR_SCHEMA_LITERAL: RxJsonSchema<DoorDocument> = {
     client_updated_at: { type: 'string', maxLength: 20 },
     server_created_at: { type: 'string', maxLength: 20 },
     server_updated_at: { type: 'string', maxLength: 20 },
-    deleted: { type: 'boolean' },
   },
   required: ['id', 'name', 'max_persons', 'status', 'client_created_at'],
 };

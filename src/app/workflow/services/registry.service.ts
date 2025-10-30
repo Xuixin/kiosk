@@ -1,8 +1,6 @@
 import { Injectable } from '@angular/core';
-import { RegistryContext } from '../helpers/registry-context.helper';
 import { DatabaseService } from 'src/app/core/Database/rxdb.service';
 import { HandshakeDocument, RxTxnDocumentType } from 'src/app/core/schema';
-import { RxHandshakeDocument } from 'src/app/core/Database/RxDB.D';
 import { HandshakeService } from 'src/app/core/Database/facade';
 import { UUIDUtils } from 'src/app/utils/uuid.utils';
 import { environment } from 'src/environments/environment';

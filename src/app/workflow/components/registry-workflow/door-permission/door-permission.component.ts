@@ -1,14 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input, OnInit, signal, computed } from '@angular/core';
+import { Component, Input, signal, inject, effect } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { ButtonModule } from 'primeng/button';
-
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
-import {
-  DoorApiService,
-  DoorDocument,
-} from '../../../../core/Api/grapgql/door.service';
+import { DoorDocument } from '../../../../core/schema/door.schema';
+import { DoorFacade } from 'src/app/core/Database/facade';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 interface DoorWithSelection extends DoorDocument {
   selected: boolean;
@@ -21,60 +19,35 @@ interface DoorWithSelection extends DoorDocument {
   styles: [],
   templateUrl: 'door-permission.component.html',
 })
-export class DoorPermissionComponent
-  extends BaseFlowController
-  implements OnInit
-{
+export class DoorPermissionComponent extends BaseFlowController {
   @Input() override data: Record<string, any> = {};
 
+  private doorFacade = inject(DoorFacade);
+
   // Door data from API
-  private doorData = signal<DoorWithSelection[]>([]);
+  doorData = signal<DoorWithSelection[]>([]);
 
-  // Reactive doors from API
-  doors = computed<DoorWithSelection[]>(() => {
-    return this.doorData();
-  });
+  private doors$ = this.doorFacade.getDoors$();
 
-  loading = signal<boolean>(false);
-  loadError = signal<string | null>(null);
+  // Reactive doors from RxDB
+  doorsWithSelection = toSignal(this.doors$, { initialValue: [] });
 
-  constructor(private doorApiService: DoorApiService) {
+  constructor() {
     super();
-  }
-
-  async ngOnInit(): Promise<void> {
-    console.log('DoorPermissionComponent initialized');
-
-    this.loading.set(true);
-    this.loadError.set(null);
-
-    try {
-      console.log('🔄 Loading doors from API...');
-      const doors = await this.doorApiService.pullDoors();
-
-      // Filter out deleted doors
-      const activeDoors = doors.filter((door) => !door.deleted);
-
-      console.log('✅ Loaded doors from API:', activeDoors.length);
-      console.log(
-        '🚪 Door data:',
-        activeDoors.map((d) => ({
-          id: d.id,
-          name: d.name,
-          deleted: d.deleted,
-        })),
-      );
-
-      // Set initial data
-      this.doorData.set(
-        activeDoors.map((door) => ({ ...door, selected: false })),
-      );
-    } catch (error) {
-      console.error('❌ Error loading doors from API:', error);
-      this.loadError.set('ไม่สามารถโหลดข้อมูลประตูได้');
-    } finally {
-      this.loading.set(false);
-    }
+    this.doorFacade.ensureInitialized();
+    // Sync doorData with RxDB stream, preserve current selections
+    effect(() => {
+      const incoming = this.doorsWithSelection();
+      this.doorData.update((current: DoorWithSelection[]) => {
+        const selectedIds = new Set(
+          current.filter((d) => d.selected).map((d) => d.id),
+        );
+        return incoming.map((door) => ({
+          ...door,
+          selected: selectedIds.has(door.id),
+        }));
+      });
+    });
   }
 
   /**
@@ -92,7 +65,7 @@ export class DoorPermissionComponent
    * Get count of selected doors
    */
   getSelectedCount(): number {
-    return this.doors().filter((door) => door.selected).length;
+    return this.doorData().filter((door) => door.selected).length;
   }
 
   /**
@@ -106,7 +79,7 @@ export class DoorPermissionComponent
    * Get selected door IDs
    */
   getSelectedDoorIds(): string[] {
-    return this.doors()
+    return this.doorData()
       .filter((door) => door.selected)
       .map((door) => door.id);
   }
@@ -115,16 +88,9 @@ export class DoorPermissionComponent
    * Get selected door names
    */
   getSelectedDoorNames(): string[] {
-    return this.doors()
+    return this.doorData()
       .filter((door) => door.selected)
       .map((door) => door.name);
-  }
-
-  /**
-   * Retry loading doors from API
-   */
-  async retryLoadDoors(): Promise<void> {
-    await this.ngOnInit();
   }
 
   /**

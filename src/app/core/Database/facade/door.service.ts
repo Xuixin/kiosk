@@ -16,11 +16,10 @@ import { DatabaseService } from '../rxdb.service';
  * Door Service facade for door operations
  * Provides reactive access to door data from local RxDB
  */
-// @Injectable({
-//   providedIn: 'root',
-// })
-@Injectable()
-export class DoorService implements OnDestroy {
+@Injectable({
+  providedIn: 'root',
+})
+export class DoorFacade implements OnDestroy {
   private readonly dbService = inject(DatabaseService);
   private dbSubscription?: Subscription;
   private _initialized = false;
@@ -31,9 +30,7 @@ export class DoorService implements OnDestroy {
 
   // Computed signals
   public readonly onlineDoors = computed(() => {
-    return this._doors().filter(
-      (door) => door.status === 'online' && !door.deleted,
-    );
+    return this._doors().filter((door) => door.status === 'online');
   });
 
   constructor() {
