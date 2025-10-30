@@ -183,6 +183,20 @@ ion-modal {
   }
 }
 
+.subflow-modal-receipt {
+  /* Default for mobile - fullscreen without border radius */
+  --width: auto;
+  --max-width: 50%;
+  --height: auto;
+
+  /* Tablet and desktop */
+  @media (min-width: 768px) {
+    --width: 70%;
+    --height: 90%;
+    --border-radius: 16px;
+  }
+}
+
 /* Dialog global styles */
 .global-dialog-modal {
   --width: 100%;

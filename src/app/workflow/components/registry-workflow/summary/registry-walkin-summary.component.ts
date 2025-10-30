@@ -16,6 +16,11 @@ import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
 import { RegistryService } from '../../../services/registry.service';
+import { DoorFacade } from 'src/app/core/Database/facade';
+import { ModalsControllerService } from 'src/app/flow-services/modals-controller.service';
+import { ReceiptService } from './offline-receipt/receipt.service';
+import { DoorOfflineReceiptModal } from './offline-receipt/door-offline-receipt.modal';
+import { firstValueFrom } from 'rxjs';
 import type { RegistryTransaction } from 'src/app/workflow/services/registry.service';
 import { UUIDUtils } from 'src/app/utils';
 
@@ -64,6 +69,9 @@ export class RegistryWalkinSummaryComponent
 
   // Services
   private registryService = inject(RegistryService);
+  private doorFacade = inject(DoorFacade);
+  private modals = inject(ModalsControllerService);
+  private receiptService = inject(ReceiptService);
 
   // Cache for Object URLs with Blob tracking
   private cachedUrls = new Map<string, { url: string; blob: Blob }>();
@@ -270,7 +278,7 @@ export class RegistryWalkinSummaryComponent
   async submitRegistration(): Promise<void> {
     const ctx = this.registryContext;
 
-    // Show loading state
+    // Prepare loading overlay (attach after offline modal, before submit)
     const loadingAlert = document.createElement('div');
     loadingAlert.innerHTML = `
         <div style="
@@ -307,9 +315,28 @@ export class RegistryWalkinSummaryComponent
           }
         </style>
       `;
-    document.body.appendChild(loadingAlert);
 
     const cid = UUIDUtils.generateTxnId();
+
+    // Check if any selected door is offline and show receipt modal first
+    try {
+      const allDoors = await firstValueFrom(this.doorFacade.getDoors$());
+      const receiptData = this.receiptService.build(ctx, allDoors, cid);
+      if (receiptData.offlineDoors.length > 0) {
+        await this.modals.openModal({
+          component: DoorOfflineReceiptModal,
+          nodeId: this.node?.id || 'summary',
+          flowId: this.currentFlow()?.id || 'registry',
+          type: 'nested',
+          data: receiptData,
+          allowBackdropDismiss: false,
+          showBackdrop: true,
+          cssClass: ['subflow-modal-receipt', 'modal-blur-backdrop'], // keep blur backdrop
+        });
+      }
+    } catch (e) {
+      console.warn('[Summary] Unable to resolve doors for offline check', e);
+    }
 
     console.log('[submitRegistration] ctx', ctx);
 
@@ -327,6 +354,8 @@ export class RegistryWalkinSummaryComponent
     };
 
     try {
+      // Show loading only while persisting
+      document.body.appendChild(loadingAlert);
       // Submit to storage
       const result = await this.registryService.submitRegistration(data);
 
