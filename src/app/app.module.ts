@@ -25,6 +25,7 @@ import { initDatabase, DatabaseService } from './core/Database/rxdb.service';
 import { WorkflowPreloadService } from './flow-services/workflow-preload.service';
 import Aura from '@primeng/themes/aura';
 import { CommonModule } from '@angular/common';
+import { ClientEventLoggingService } from './core/monitoring/client-event-logging.service';
 
 @NgModule({
   declarations: [AppComponent],
@@ -47,6 +48,18 @@ import { CommonModule } from '@angular/common';
       useFactory: (injector: Injector) => () => initDatabase(injector),
       multi: true,
       deps: [Injector],
+    },
+    // * client event logging (ensure DB initialized first)
+    {
+      provide: APP_INITIALIZER,
+      useFactory: (injector: Injector, svc: ClientEventLoggingService) => () =>
+        (async () => {
+          // Wait for DB init (idempotent if already initialized)
+          await initDatabase(injector);
+          await svc.init();
+        })(),
+      multi: true,
+      deps: [Injector, ClientEventLoggingService],
     },
     // * workflow preload
     {

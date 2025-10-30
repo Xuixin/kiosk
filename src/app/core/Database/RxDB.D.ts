@@ -1,5 +1,10 @@
 import type { RxDocument, RxCollection, RxDatabase } from 'rxdb';
-import { RxTxnDocumentType, HandshakeDocument, DoorDocument } from '../schema';
+import {
+  RxTxnDocumentType,
+  HandshakeDocument,
+  DoorDocument,
+  LogClientDocument,
+} from '../schema';
 import { Signal } from '@angular/core';
 
 // orm method for txn
@@ -58,10 +63,26 @@ export type RxDoorCollection = RxCollection<
   Signal<unknown>
 >;
 
+// orm method for log_client
+type RxLogClientMethods = {};
+
+export type RxLogClientRxDocument = RxDocument<
+  LogClientDocument,
+  RxLogClientMethods
+>;
+export type RxLogClientCollection = RxCollection<
+  LogClientDocument,
+  RxLogClientMethods,
+  unknown,
+  unknown,
+  Signal<unknown>
+>;
+
 export type RxTxnsCollections = {
   txn: RxTxnCollection;
   handshake: RxHandshakeCollection;
   door: RxDoorCollection;
+  log_client: RxLogClientCollection;
 };
 export type RxTxnsDatabase = RxDatabase<
   RxTxnsCollections,

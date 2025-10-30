@@ -2,7 +2,12 @@ import { Injector, Injectable, Signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 import { environment } from '../../../environments/environment';
-import { TXN_SCHEMA, HANDSHAKE_SCHEMA, DOOR_SCHEMA } from '../schema';
+import {
+  TXN_SCHEMA,
+  HANDSHAKE_SCHEMA,
+  DOOR_SCHEMA,
+  LOG_CLIENT_SCHEMA,
+} from '../schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
 
@@ -27,6 +32,9 @@ const collectionsSettings = {
   },
   door: {
     schema: DOOR_SCHEMA as any,
+  },
+  log_client: {
+    schema: LOG_CLIENT_SCHEMA as any,
   },
 };
 
