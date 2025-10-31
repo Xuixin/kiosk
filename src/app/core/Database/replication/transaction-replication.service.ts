@@ -10,6 +10,10 @@ import { ClientIdentityService } from '../../identity/client-identity.service';
 import { BaseReplicationService } from './base-replication.service';
 import { ReplicationConfig } from '../adapter';
 import {
+  ReplicationConfigBuilder,
+  ReplicationConfigOptions,
+} from './replication-config-builder';
+import {
   PUSH_TRANSACTION_MUTATION,
   PULL_TRANSACTION_QUERY,
   STREAM_TRANSACTION_SUBSCRIPTION,
@@ -23,9 +27,6 @@ import {
   providedIn: 'root',
 })
 export class TransactionReplicationService extends BaseReplicationService<RxTxnDocumentType> {
-  private graphqlEndpoint: string = environment.apiUrl;
-  private graphqlWsEndpoint: string = environment.wsUrl;
-
   constructor(
     networkStatus: NetworkStatusService,
     private readonly identity: ClientIdentityService,
@@ -36,124 +37,98 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
 
   /**
    * Build replication configuration for adapter
-   * Returns config with GraphQL-specific options (queryBuilder, etc.)
+   * Uses ReplicationConfigBuilder to reduce code duplication
    */
   protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
-    return {
-      replicationId: this.replicationIdentifier || 'txn-graphql-replication',
+    const options: ReplicationConfigOptions = {
       collectionName: 'txn',
-      url: {
-        http: this.graphqlEndpoint,
-        ws: this.graphqlWsEndpoint,
-      },
-      pull: {
-        batchSize: 5,
-        queryBuilder: (checkpoint: any, limit: number) => {
-          console.log('🔵 Pull Query - checkpoint:', checkpoint);
-          return {
-            query: PULL_TRANSACTION_QUERY,
-            variables: {
-              input: {
-                checkpoint: {
-                  id: checkpoint?.id || '',
-                  server_updated_at: checkpoint?.server_updated_at || '0',
-                },
-                limit: limit || 5,
-              },
+      replicationId: this.replicationIdentifier,
+      batchSize: 5,
+      pullQueryBuilder: (checkpoint: any, limit: number) => {
+        console.log('🔵 Pull Query - checkpoint:', checkpoint);
+        return {
+          query: PULL_TRANSACTION_QUERY,
+          variables: {
+            input: {
+              checkpoint:
+                ReplicationConfigBuilder.buildCheckpointInput(checkpoint),
+              limit: limit || 5,
             },
-          };
-        },
-        streamQueryBuilder: (headers: any) => {
-          console.log('🔄 Stream Query - headers:', headers);
-          return {
-            query: STREAM_TRANSACTION_SUBSCRIPTION,
-            variables: {},
-          };
-        },
-        responseModifier: (plainResponse: any, requestCheckpoint: any) => {
-          console.log('🟢 Full Response:', plainResponse);
-          const pullData =
-            plainResponse.pullTransaction ||
-            plainResponse.streamTransaction2 ||
-            plainResponse;
-          const documents = pullData.documents || [];
-          const checkpoint = pullData.checkpoint;
-          return {
-            documents: documents,
-            checkpoint: checkpoint,
-          };
-        },
-        modifier: (doc: any) => {
-          if (doc.status === 'OUT') {
-            return {
-              ...doc,
-              _deleted: true,
-            };
-          }
+          },
+        };
+      },
+      streamQueryBuilder: (headers: any) => {
+        console.log('🔄 Stream Query - headers:', headers);
+        return {
+          query: STREAM_TRANSACTION_SUBSCRIPTION,
+          variables: {},
+        };
+      },
+      responseModifier: ReplicationConfigBuilder.createResponseModifier([
+        'pullTransaction',
+        'streamTransaction2',
+      ]),
+      pullModifier: (doc: any) => {
+        if (doc.status === 'OUT') {
           return {
             ...doc,
-            door_permission:
-              typeof doc.door_permission === 'string'
-                ? doc.door_permission.split(',').map((s: any) => s.trim())
-                : doc.door_permission,
+            _deleted: true,
           };
-        },
-        wsOptions: {
-          connectionParams: async () => {
-            const client_id = await this.identity.getClientId();
-            const client_type = this.identity.getClientType();
-            return {
-              client_id,
-              client_type,
-              door_id: client_id,
-            };
-          },
-          connectionAckWaitTimeout: 1000,
-        },
-      } as any,
-      push: {
-        queryBuilder: (docs: any[]) => {
-          const writeRows = docs.map((docRow) => {
-            const doc = docRow.newDocumentState;
-            return {
-              newDocumentState: {
-                id: doc.id,
-                name: doc.name,
-                id_card_base64: doc.id_card_base64,
-                student_number: doc.student_number,
-                register_type: doc.register_type,
-                door_permission: Array.isArray(doc.door_permission)
-                  ? doc.door_permission.join(',')
-                  : doc.door_permission,
-                status: doc.status,
-                client_created_at:
-                  doc.client_created_at || Date.now().toString(),
-                client_updated_at:
-                  doc.client_updated_at || Date.now().toString(),
-                server_created_at: doc.server_created_at,
-                server_updated_at: doc.server_updated_at,
-                diff_time_create: doc.diff_time_create || '0',
-                diff_time_update: doc.diff_time_update || '0',
-                deleted: docRow.assumedMasterState === null,
-              },
-            };
-          });
+        }
+        return {
+          ...doc,
+          door_permission:
+            typeof doc.door_permission === 'string'
+              ? doc.door_permission.split(',').map((s: any) => s.trim())
+              : doc.door_permission,
+        };
+      },
+      wsConnectionParams: async () => {
+        const client_id = await this.identity.getClientId();
+        const client_type = this.identity.getClientType();
+        return {
+          client_id,
+          client_type,
+          door_id: client_id,
+        };
+      },
+      connectionAckWaitTimeout: 1000,
+      pushQueryBuilder: (docs: any[]) => {
+        const writeRows = docs.map((docRow) => {
+          const doc = docRow.newDocumentState;
           return {
-            query: PUSH_TRANSACTION_MUTATION,
-            variables: {
-              writeRows,
+            newDocumentState: {
+              id: doc.id,
+              name: doc.name,
+              id_card_base64: doc.id_card_base64,
+              student_number: doc.student_number,
+              register_type: doc.register_type,
+              door_permission: Array.isArray(doc.door_permission)
+                ? doc.door_permission.join(',')
+                : doc.door_permission,
+              status: doc.status,
+              client_created_at: doc.client_created_at || Date.now().toString(),
+              client_updated_at: doc.client_updated_at || Date.now().toString(),
+              server_created_at: doc.server_created_at,
+              server_updated_at: doc.server_updated_at,
+              diff_time_create: doc.diff_time_create || '0',
+              diff_time_update: doc.diff_time_update || '0',
+              deleted: docRow.assumedMasterState === null,
             },
           };
-        },
-        dataPath: 'data.pushTransaction',
-        modifier: (doc: any) => doc,
-      } as any,
-      live: true,
-      retryTime: 60000,
-      autoStart: true,
-      waitForLeadership: true,
-      headers: {},
+        });
+        return {
+          query: PUSH_TRANSACTION_MUTATION,
+          variables: {
+            writeRows,
+          },
+        };
+      },
+      pushDataPath: 'data.pushTransaction',
+      pushModifier: (doc: any) => doc,
     };
+
+    return ReplicationConfigBuilder.buildBaseConfig(options);
   }
 
   /**

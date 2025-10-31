@@ -8,6 +8,10 @@ import { BaseReplicationService } from './base-replication.service';
 import { DoorDocument } from '../../schema/door.schema';
 import { doorQueryBuilder } from '../query-builder/door-query-builder';
 import { ReplicationConfig } from '../adapter';
+import {
+  ReplicationConfigBuilder,
+  ReplicationConfigOptions,
+} from './replication-config-builder';
 
 /**
  * Door-specific GraphQL replication service
@@ -17,9 +21,6 @@ import { ReplicationConfig } from '../adapter';
   providedIn: 'root',
 })
 export class DoorReplicationService extends BaseReplicationService<DoorDocument> {
-  private graphqlEndpoint: string = environment.apiUrl;
-  private graphqlWsEndpoint: string = environment.wsUrl;
-
   constructor(networkStatus: NetworkStatusService) {
     super(networkStatus);
     this.collectionName = 'door';
@@ -27,23 +28,76 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
 
   /**
    * Build replication configuration for adapter
+   * Uses ReplicationConfigBuilder to reduce code duplication
    */
   protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
-    return {
-      replicationId: this.replicationIdentifier || 'door-graphql-replication',
+    const options: ReplicationConfigOptions = {
       collectionName: 'door',
-      url: {
-        http: this.graphqlEndpoint,
-        ws: this.graphqlWsEndpoint,
+      replicationId: this.replicationIdentifier,
+      batchSize: 10,
+      pullQueryBuilder: (checkpoint, limit) => {
+        console.log('🔵 Pull Door Query - checkpoint:', checkpoint);
+        return {
+          query: doorQueryBuilder.getPullQuery(),
+          variables: {
+            input: {
+              checkpoint:
+                ReplicationConfigBuilder.buildCheckpointInput(checkpoint),
+              limit: limit || 10,
+            },
+          },
+        };
       },
-      pull: {
-        batchSize: 10,
-      } as any,
-      push: {} as any,
-      live: true,
-      retryTime: 60000,
-      autoStart: true,
+      streamQueryBuilder: (headers) => {
+        console.log('🔄 Stream Door Query - headers:', headers);
+        return {
+          query: doorQueryBuilder.getStreamSubscription() || '',
+          variables: {},
+        };
+      },
+      responseModifier: ReplicationConfigBuilder.createResponseModifier([
+        'pullDoors',
+        'streamDoor',
+      ]),
+      pullModifier: (doc) => {
+        // Filter out deleted doors
+        if (doc.deleted) {
+          return {
+            ...doc,
+            _deleted: true,
+          };
+        }
+        return doc;
+      },
+      pushQueryBuilder: (docs) => {
+        const writeRows = docs.map((docRow) => {
+          const doc = docRow.newDocumentState;
+          return {
+            newDocumentState: {
+              id: doc.id,
+              name: doc.name,
+              max_persons: doc.max_persons,
+              status: doc.status,
+              client_created_at: doc.client_created_at || Date.now().toString(),
+              client_updated_at: doc.client_updated_at || Date.now().toString(),
+              server_created_at: doc.server_created_at,
+              server_updated_at: doc.server_updated_at,
+              deleted: docRow.assumedMasterState === null,
+            },
+          };
+        });
+        return {
+          query: doorQueryBuilder.getPushMutation(),
+          variables: {
+            writeRows,
+          },
+        };
+      },
+      pushDataPath: 'data.pushDoors',
+      pushModifier: (doc) => doc,
     };
+
+    return ReplicationConfigBuilder.buildBaseConfig(options);
   }
 
   /**
@@ -63,14 +117,11 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
       return undefined;
     }
 
+    // Use config from buildReplicationConfig() and merge with collection
+    const config = this.buildReplicationConfig() as any;
     this.replicationState = replicateGraphQL<DoorDocument, any>({
       collection: collection as any,
-      replicationIdentifier:
-        this.replicationIdentifier || 'door-graphql-replication',
-      url: {
-        http: this.graphqlEndpoint,
-        ws: this.graphqlWsEndpoint,
-      },
+      ...config,
 
       pull: {
         batchSize: 10,
