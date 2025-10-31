@@ -4,6 +4,8 @@ import {
   HandshakeDocument,
   DoorDocument,
   LogClientDocument,
+  LogDocument,
+  RxLogDocumentType,
 } from '../schema';
 import { Signal } from '@angular/core';
 
@@ -63,6 +65,23 @@ export type RxDoorCollection = RxCollection<
   Signal<unknown>
 >;
 
+// orm method for log
+type RxLogMethods = {
+  findAll: () => Promise<RxLogDocument[]>;
+  findById: (id: string) => Promise<RxLogDocument | null>;
+  create: (log: LogDocument) => Promise<RxLogDocument>;
+  update: (log: LogDocument) => Promise<RxLogDocument>;
+};
+
+export type RxLogDocument = RxDocument<RxLogDocumentType, RxLogMethods>;
+export type RxLogCollection = RxCollection<
+  RxLogDocumentType,
+  RxLogMethods,
+  unknown,
+  unknown,
+  Signal<unknown>
+>;
+
 // orm method for log_client
 type RxLogClientMethods = {};
 
@@ -82,6 +101,7 @@ export type RxTxnsCollections = {
   txn: RxTxnCollection;
   handshake: RxHandshakeCollection;
   door: RxDoorCollection;
+  log: RxLogCollection;
   log_client: RxLogClientCollection;
 };
 export type RxTxnsDatabase = RxDatabase<

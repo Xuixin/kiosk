@@ -7,6 +7,7 @@ import {
   HANDSHAKE_SCHEMA,
   DOOR_SCHEMA,
   LOG_CLIENT_SCHEMA,
+  LOG_SCHEMA,
 } from '../schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
@@ -37,6 +38,9 @@ const collectionsSettings = {
   },
   log_client: {
     schema: LOG_CLIENT_SCHEMA as any,
+  },
+  log: {
+    schema: LOG_SCHEMA as any,
   },
 };
 

@@ -8,6 +8,7 @@
 # Only exists if Bazel was run
 /bazel-out
 /typings
+/docs
 
 # Dependencies
 /node_modules
