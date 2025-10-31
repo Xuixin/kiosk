@@ -4,8 +4,8 @@ import { IonicModule } from '@ionic/angular';
 import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
-import { DoorDocument } from '../../../../core/schema/door.schema';
-import { DoorFacade } from 'src/app/core/Database/facade';
+import { DoorDocument } from '../../../../core/Database/collections/door/schema';
+import { DoorFacade } from 'src/app/core/Database/collections/door';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 interface DoorWithSelection extends DoorDocument {

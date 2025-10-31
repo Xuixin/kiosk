@@ -25,7 +25,7 @@ import {
   initDatabase,
   DatabaseService,
 } from './core/Database/database.service';
-import { AdapterProviderService } from './core/Database/factory';
+import { AdapterProviderService } from './core/Database/core/factory';
 import { WorkflowPreloadService } from './flow-services/workflow-preload.service';
 import Aura from '@primeng/themes/aura';
 import { CommonModule } from '@angular/common';

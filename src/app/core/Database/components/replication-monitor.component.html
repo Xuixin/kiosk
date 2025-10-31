@@ -1,0 +1,136 @@
+<div class="replication-monitor">
+  <div class="monitor-header" (click)="toggleCollapse()">
+    <div class="header-left">
+      <span class="icon">📊</span>
+      <span class="title">Replication Monitor</span>
+    </div>
+    <div class="header-right">
+      <span class="collapse-icon">{{ isCollapsed ? "▼" : "▲" }}</span>
+    </div>
+  </div>
+
+  <div class="monitor-content" *ngIf="!isCollapsed">
+    <!-- Backend Server Status Section -->
+    <div class="server-status-section">
+      <h3>Backend Servers</h3>
+      <div class="server-list">
+        <div class="server-item">
+          <div class="server-info">
+            <span class="server-icon">{{
+              getStatusIcon(serverHealth?.primary.status || "offline")
+            }}</span>
+            <div class="server-details">
+              <div class="server-name">Primary Server</div>
+              <div class="server-url">
+                {{ serverHealth?.primary.url || "N/A" }}
+              </div>
+              <div class="server-status">
+                Status:
+                <strong>{{
+                  getStatusText(serverHealth?.primary.status || "offline")
+                }}</strong>
+                <span
+                  *ngIf="
+                    serverHealth && serverHealth.primary.consecutiveFailures > 0
+                  "
+                  >({{
+                    serverHealth.primary.consecutiveFailures
+                  }}
+                  failures)</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="server-item">
+          <div class="server-info">
+            <span class="server-icon">{{
+              getStatusIcon(serverHealth?.fallback.status || "offline")
+            }}</span>
+            <div class="server-details">
+              <div class="server-name">Fallback Server</div>
+              <div class="server-url">
+                {{ serverHealth?.fallback.url || "N/A" }}
+              </div>
+              <div class="server-status">
+                Status:
+                <strong>{{
+                  getStatusText(serverHealth?.fallback.status || "offline")
+                }}</strong>
+                <span
+                  *ngIf="
+                    serverHealth &&
+                    serverHealth.fallback.consecutiveFailures > 0
+                  "
+                  >({{
+                    serverHealth.fallback.consecutiveFailures
+                  }}
+                  failures)</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Replication Status Section -->
+    <div class="replication-status-section">
+      <h3>Replication Services</h3>
+      <div class="replication-list">
+        <div
+          class="replication-item"
+          *ngFor="let status of replicationStatuses"
+        >
+          <div class="replication-header">
+            <span class="collection-name">{{ status.displayName }}</span>
+            <span
+              class="status-badge"
+              [class.active]="status.isActive"
+              [class.inactive]="!status.isActive"
+            >
+              {{ status.isActive ? "Active" : "Inactive" }}
+            </span>
+          </div>
+
+          <div class="replication-details">
+            <div class="detail-row">
+              <span class="label">Current URL:</span>
+              <span class="value">
+                {{ getUrlTypeIcon(status.currentUrl) }}
+                {{ status.currentUrl === "primary" ? "Primary" : "Fallback" }}
+              </span>
+            </div>
+
+            <div class="detail-row">
+              <span class="label">Primary Server:</span>
+              <span class="value">
+                {{ getStatusIcon(status.backendServerStatus.primary) }}
+                {{ getStatusText(status.backendServerStatus.primary) }}
+              </span>
+            </div>
+
+            <div class="detail-row">
+              <span class="label">Fallback Server:</span>
+              <span class="value">
+                {{ getStatusIcon(status.backendServerStatus.fallback) }}
+                {{ getStatusText(status.backendServerStatus.fallback) }}
+              </span>
+            </div>
+
+            <div class="detail-row">
+              <span class="label">Last Sync:</span>
+              <span class="value">{{ formatDate(status.lastSyncAt) }}</span>
+            </div>
+
+            <div class="detail-row" *ngIf="status.errorCount > 0">
+              <span class="label">Error Count:</span>
+              <span class="value error">{{ status.errorCount }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

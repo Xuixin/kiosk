@@ -1,0 +1,53 @@
+import { RxJsonSchema } from 'rxdb';
+import { SchemaDefinition } from '../../core/adapter';
+import { convertRxDBSchemaToAdapter } from '../../core/schema-converter';
+
+export type LogClientType = 'KIOSK' | 'DOOR';
+
+export interface LogClientDocument {
+  id: string; // uuid
+  client_id: string; // device unique id
+  type: LogClientType; // 'KIOSK' | 'DOOR'
+  status: string; // ONLINE | OFFLINE | ...
+  meta_data: string; // free-form message or JSON string
+  server_created_at?: string | '';
+  client_created_at: string; // Date.now().toString()
+  server_updated_at?: string | '';
+  diff_time_create?: number | '';
+}
+
+export const LOG_CLIENT_SCHEMA_LITERAL: RxJsonSchema<LogClientDocument> = {
+  title: 'LogClient',
+  description: 'Client-side lifecycle and connectivity log entries',
+  version: 0,
+  primaryKey: 'id',
+  keyCompression: false,
+  type: 'object',
+  properties: {
+    id: { type: 'string', maxLength: 100 },
+    client_id: { type: 'string', maxLength: 200 },
+    type: { type: 'string', maxLength: 20 },
+    status: { type: 'string', maxLength: 40 },
+    meta_data: { type: 'string', maxLength: 4000 },
+    server_created_at: { type: 'string', maxLength: 30 },
+    client_created_at: { type: 'string', maxLength: 30 },
+    server_updated_at: { type: 'string', maxLength: 30 },
+    diff_time_create: { type: ['number', 'string'] },
+  },
+  required: [
+    'id',
+    'client_id',
+    'type',
+    'status',
+    'meta_data',
+    'client_created_at',
+  ],
+  indexes: ['client_created_at', 'client_id', 'status'],
+};
+
+export const LOG_CLIENT_SCHEMA = LOG_CLIENT_SCHEMA_LITERAL;
+export type LogClientDocumentType = LogClientDocument;
+
+// Export adapter-compatible schema
+export const LOG_CLIENT_SCHEMA_ADAPTER: SchemaDefinition =
+  convertRxDBSchemaToAdapter('log_client', LOG_CLIENT_SCHEMA as any);

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DoorDocument } from 'src/app/core/schema/door.schema';
+import { DoorDocument } from 'src/app/core/Database/collections/door/schema';
 
 export interface ReceiptViewModel {
   ticketId: string;

@@ -16,7 +16,7 @@ import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
 import { RegistryService } from '../../../services/registry.service';
-import { DoorFacade } from 'src/app/core/Database/facade';
+import { DoorFacade } from 'src/app/core/Database/collections/door';
 import { ModalsControllerService } from 'src/app/flow-services/modals-controller.service';
 import { ReceiptService } from './offline-receipt/receipt.service';
 import { DoorOfflineReceiptModal } from './offline-receipt/door-offline-receipt.modal';

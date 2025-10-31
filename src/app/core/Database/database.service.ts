@@ -1,21 +1,19 @@
 import { Injector, Injectable } from '@angular/core';
 import { environment } from '../../../environments/environment';
-import {
-  TransactionReplicationService,
-  HandshakeReplicationService,
-  DoorReplicationService,
-  LogClientReplicationService,
-} from './replication';
+import { TransactionReplicationService } from './collections/txn';
+import { HandshakeReplicationService } from './collections/handshake';
+import { DoorReplicationService } from './collections/door';
+import { LogClientReplicationService } from './collections/log_client';
 import { NetworkStatusService } from './network-status.service';
 import { ClientIdentityService } from '../identity/client-identity.service';
-import { AdapterProviderService } from './factory';
+import { AdapterProviderService } from './core/factory';
 import {
   RxDBAdapter,
   getAdapterSchemas,
   setupDebugRxDB,
-} from './adapters/rxdb';
-import { RxTxnsDatabase } from './adapters/rxdb';
-import { CollectionRegistry } from './config/collection-registry';
+} from './core/adapters/rxdb';
+import { RxTxnsDatabase } from './core/types/database.types';
+import { CollectionRegistry } from './core/collection-registry';
 
 let GLOBAL_DB_SERVICE: DatabaseService | undefined;
 let initState: null | Promise<any> = null;
@@ -34,8 +32,10 @@ interface ReplicationServiceConfig {
 /**
  * Initialize replication services using collection registry
  * Returns array of service configs for parallel registration
+ * Uses Angular Injector to properly create services with dependency injection
  */
 function initializeReplicationServices(
+  injector: Injector,
   networkStatusService: NetworkStatusService,
   identityService: ClientIdentityService,
 ): ReplicationServiceConfig[] {
@@ -48,24 +48,19 @@ function initializeReplicationServices(
     let service: any;
 
     // Create appropriate replication service based on collection name
+    // Use Injector.create() to properly handle dependency injection
     switch (metadata.collectionName) {
       case 'txn':
-        service = new TransactionReplicationService(
-          networkStatusService,
-          identityService,
-        );
+        service = injector.get(TransactionReplicationService);
         break;
       case 'handshake':
-        service = new HandshakeReplicationService(networkStatusService);
+        service = injector.get(HandshakeReplicationService);
         break;
       case 'door':
-        service = new DoorReplicationService(networkStatusService);
+        service = injector.get(DoorReplicationService);
         break;
       case 'log_client':
-        service = new LogClientReplicationService(
-          networkStatusService,
-          identityService,
-        );
+        service = injector.get(LogClientReplicationService);
         break;
       default:
         console.warn(
@@ -146,14 +141,19 @@ export async function initDatabase(injector: Injector) {
     throw new Error('initDatabase() injector missing');
   }
 
+  // Prevent duplicate initialization
+  if (initState) {
+    console.log('⚠️ Database already initializing, waiting for completion...');
+    await initState;
+    return;
+  }
+
   const identityService = injector.get(ClientIdentityService);
   const adapterProvider = injector.get(
     AdapterProviderService,
   ) as AdapterProviderService;
 
   if (!initState) {
-    console.log('initDatabase() - using adapter pattern');
-
     // Initialize adapter with schemas
     const schemas = getAdapterSchemas();
     const adapterConfig = {
@@ -175,8 +175,9 @@ export async function initDatabase(injector: Injector) {
 
     // Initialize replication services (can be done in parallel)
     initState = Promise.resolve().then(async () => {
-      const networkStatusService = new NetworkStatusService();
+      const networkStatusService = injector.get(NetworkStatusService);
       const replicationConfigs = initializeReplicationServices(
+        injector,
         networkStatusService,
         identityService,
       );
@@ -196,11 +197,6 @@ export async function initDatabase(injector: Injector) {
         const metadata = CollectionRegistry.get(result.collectionName);
         const displayName = metadata?.displayName || result.collectionName;
         if (result.success) {
-          console.log(`DatabaseService: ${displayName} replication started`);
-        } else {
-          console.log(
-            `DatabaseService: ${displayName} replication not started (offline or error)`,
-          );
         }
       });
     });
@@ -223,6 +219,19 @@ export class DatabaseService {
     | DoorReplicationService
     | LogClientReplicationService
   > = new Map();
+
+  /**
+   * Get all replication services (for monitoring)
+   */
+  getReplicationServices(): Map<
+    string,
+    | TransactionReplicationService
+    | HandshakeReplicationService
+    | DoorReplicationService
+    | LogClientReplicationService
+  > {
+    return this.replicationServices;
+  }
 
   constructor() {
     GLOBAL_DB_SERVICE = this;

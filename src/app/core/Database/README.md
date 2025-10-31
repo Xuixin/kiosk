@@ -6,56 +6,85 @@ This directory contains the database abstraction layer that enables database-agn
 
 The database layer uses an **adapter pattern** to abstract database operations from specific implementations, allowing the application to work with different database backends (RxDB, PouchDB, WatermelonDB, etc.) through a unified interface.
 
-### Directory Structure
+### Directory Structure (Table-Based Organization)
 
 ```
 Database/
-├── adapter/              # Core interfaces and types
-│   ├── db-adapter.interface.ts          # Main DBAdapter interface
-│   ├── collection-adapter.interface.ts # Collection operations interface
-│   ├── replication-adapter.interface.ts # Replication interface
-│   ├── query.types.ts                   # Query-related types
-│   └── index.ts                         # Exports all interfaces
+├── core/                      # Shared/base classes and utilities
+│   ├── base-facade.service.ts         # Base class for facade services
+│   ├── base-replication.service.ts    # Base class for replication services
+│   ├── replication-config-builder.ts # Replication config builder utility
+│   ├── collection-registry.ts         # Central collection registry
+│   ├── base-schema.ts                 # Base schema utilities
+│   ├── schema-converter.ts            # Schema converter utilities
+│   ├── adapter/                       # Core adapter interfaces
+│   │   ├── db-adapter.interface.ts
+│   │   ├── collection-adapter.interface.ts
+│   │   ├── replication-adapter.interface.ts
+│   │   └── query.types.ts
+│   ├── adapters/                      # Concrete adapter implementations
+│   │   └── rxdb/                      # RxDB adapter
+│   │       ├── rxdb-adapter.ts
+│   │       ├── rxdb-collection-adapter.ts
+│   │       ├── rxdb-replication-adapter.ts
+│   │       └── rxdb-helpers.ts
+│   ├── factory/                       # Adapter factory and provider
+│   │   ├── adapter-factory.ts
+│   │   └── adapter-provider.service.ts
+│   └── types/                         # Shared types
+│       ├── database.types.ts          # Main database type (RxTxnsDatabase)
+│       ├── utils.ts                   # Type utility helpers
+│       └── base-query-builder.ts      # Base query builder
 │
-├── adapters/             # Concrete implementations
-│   └── rxdb/             # RxDB adapter implementation
-│       ├── rxdb-adapter.ts              # Main RxDB adapter
-│       ├── rxdb-collection-adapter.ts   # RxDB collection adapter
-│       ├── rxdb-replication-adapter.ts  # RxDB replication adapter
-│       └── index.ts                     # Exports
+├── collections/               # Table-based organization (NEW!)
+│   ├── txn/                   # Transaction collection
+│   │   ├── schema.ts
+│   │   ├── types.ts
+│   │   ├── facade.service.ts
+│   │   ├── replication.service.ts
+│   │   ├── query-builder.ts
+│   │   └── index.ts
+│   ├── door/                   # Door collection
+│   │   ├── schema.ts
+│   │   ├── types.ts
+│   │   ├── facade.service.ts
+│   │   ├── replication.service.ts
+│   │   ├── query-builder.ts
+│   │   └── index.ts
+│   ├── handshake/             # Handshake collection
+│   │   └── ... (same structure)
+│   └── log_client/            # Log client collection
+│       └── ... (same structure)
 │
-├── factory/              # Adapter creation and dependency injection
-│   ├── adapter-factory.ts               # Factory for creating adapters
-│   ├── adapter-provider.service.ts      # Angular service for adapter access
-│   └── index.ts                         # Exports
+├── schema/                    # Legacy schemas (only log collection)
+│   └── log-schema.ts          # TODO: Move to collections/log/
 │
-├── facade/               # High-level service facades
-│   ├── transaction.service.ts           # Transaction operations
-│   ├── door.service.ts                  # Door operations
-│   ├── handshake.service.ts             # Handshake operations
-│   ├── log-client.service.ts           # Log client operations
-│   └── index.ts                         # Exports
+├── document/                   # Documentation
+│   ├── ADD_NEW_TABLE.md        # Guide for adding new collections
+│   ├── DEVELOPER_GUIDE.md
+│   └── ...
 │
-├── replication/          # Replication services
-│   ├── base-replication.service.ts      # Base replication service
-│   ├── transaction-replication.service.ts
-│   ├── door-replication.service.ts
-│   ├── handshake-replication.service.ts
-│   ├── log-client-replication.service.ts
-│   └── index.ts
+├── templates/                  # Code templates
+│   └── collection.template.ts  # Template for new collections
 │
-├── query-builder/        # GraphQL query builders
-│   ├── base-query-builder.ts
-│   ├── txn-query-builder.ts
-│   ├── door-query-builder.ts
-│   ├── handshake-query-builder.ts
-│   └── log-client-builder.ts
-│
-├── document/             # Documentation files
-│
-├── database.service.ts   # Main DatabaseService using adapter pattern
-└── network-status.service.ts # Network status monitoring
+├── database.service.ts         # Main DatabaseService
+└── network-status.service.ts   # Network status monitoring
 ```
+
+## Key Benefits of New Structure
+
+### ✅ Table-Based Organization
+
+- **Self-contained**: All files for a table are in one folder
+- **Easy to add**: Just create a new folder with all files
+- **Easy to find**: Everything related to a table in one place
+- **Team-friendly**: Each developer can work on different tables without conflicts
+
+### ✅ Separation of Concerns
+
+- **core/**: Shared utilities, base classes, and adapter implementations
+- **collections/**: Table-specific business logic (self-contained)
+- Clear separation makes the codebase easier to understand and maintain
 
 ## Core Concepts
 
@@ -95,96 +124,123 @@ interface CollectionAdapter<T> {
 
 Angular service that manages the database adapter lifecycle:
 
-- **Provided in:** `root` (singleton)
-- **Initialization:** Automatically initialized during app bootstrap
-- **Usage:** Inject `AdapterProviderService` to access the database adapter
-
 ```typescript
-// Example usage
-constructor(private adapterProvider: AdapterProviderService) {}
-
-async getData() {
-  await this.adapterProvider.waitUntilReady();
-  const collection = this.adapterProvider.getAdapter().getCollection<T>('collectionName');
-  return collection.find();
+@Injectable({ providedIn: "root" })
+export class AdapterProviderService {
+  getAdapter(): DBAdapter;
+  isReady(): boolean;
+  waitUntilReady(): Promise<DBAdapter>;
 }
 ```
 
-## Migration Guide
+### 4. Base Classes
 
-### For Service Developers
+- **BaseFacadeService**: Base class for facade services with automatic subscription management
+- **BaseReplicationService**: Base class for replication services with network handling
+- **ReplicationConfigBuilder**: Utility to build replication configurations
 
-**Before (Direct RxDB):**
+### 5. Collection Registry
+
+Central registry for all collections:
 
 ```typescript
-constructor(private dbService: DatabaseService) {}
-
-getDocuments() {
-  return this.dbService.db.collection.find().exec();
+export class CollectionRegistry {
+  static get(name: string): CollectionMetadata | undefined;
+  static getAll(): CollectionMetadata[];
+  // ...
 }
 ```
 
-**After (Adapter Pattern):**
+## Adding a New Collection
+
+See the detailed guide: [ADD_NEW_TABLE.md](./document/ADD_NEW_TABLE.md)
+
+**Quick Steps:**
+
+1. Register in `core/collection-registry.ts`
+2. Create folder: `collections/{table-name}/`
+3. Create files: `schema.ts`, `types.ts`, `facade.service.ts`, `replication.service.ts`, `query-builder.ts`, `index.ts`
+4. Update `core/types/database.types.ts`
+5. Update `core/adapters/rxdb/rxdb-helpers.ts`
+
+## Usage Examples
+
+### Using Facade Service
 
 ```typescript
-constructor(private adapterProvider: AdapterProviderService) {}
+import { TransactionService } from "./core/Database/collections/txn";
 
-async getDocuments() {
-  await this.adapterProvider.waitUntilReady();
-  const collection = this.adapterProvider.getAdapter().getCollection('collectionName');
-  return collection.find();
+export class MyComponent {
+  private transactionService = inject(TransactionService);
+
+  async ngOnInit() {
+    // Access reactive data via signals
+    const transactions = this.transactionService.transactions();
+
+    // Or use async methods
+    const allTxns = await this.transactionService.findAll();
+  }
 }
 ```
 
-### Using Facade Services
-
-For common operations, use the facade services which already use the adapter:
+### Direct Adapter Access
 
 ```typescript
-// Transaction operations
-constructor(private transactionService: TransactionService) {}
+import { AdapterProviderService } from "./core/Database/core/factory";
 
-// Door operations
-constructor(private doorService: DoorService) {}
+export class MyService {
+  private adapterProvider = inject(AdapterProviderService);
+
+  async getData() {
+    await this.adapterProvider.waitUntilReady();
+    const adapter = this.adapterProvider.getAdapter();
+    const collection = adapter.getCollection<MyDocument>("my_collection");
+    return await collection.find();
+  }
+}
 ```
 
-## Configuration
+## Migration Notes
 
-The database adapter type is configured in `environment.ts`:
+### From Old Structure to New Structure
 
-```typescript
-export const environment = {
-  adapterType: "rxdb" as const, // 'rxdb' | 'pouchdb' | 'watermelon' | etc.
-  // ... other config
-};
+**Old (Function-Based):**
+
+```
+Database/
+├── schema/txn.schema.ts
+├── facade/transaction.service.ts
+├── replication/transaction-replication.service.ts
+└── adapters/rxdb/types/collections/txn.types.ts
 ```
 
-## Adding a New Database Backend
+**New (Table-Based):**
 
-1. **Create adapter implementation** in `adapters/[backend-name]/`:
-   - Implement `DBAdapter` interface
-   - Implement `CollectionAdapter` interface
-   - Implement `ReplicationAdapter` interface (if supported)
+```
+Database/
+└── collections/txn/
+    ├── schema.ts
+    ├── types.ts
+    ├── facade.service.ts
+    ├── replication.service.ts
+    └── query-builder.ts
+```
 
-2. **Update factory** in `factory/adapter-factory.ts`:
-   - Add case for new adapter type
-   - Handle dynamic import
+All files for a collection are now in one folder!
 
-3. **Update environment** configuration
+## Documentation
 
-4. **Test** with all existing facade services
+- **[ADD_NEW_TABLE.md](./document/ADD_NEW_TABLE.md)**: Complete guide for adding new collections
+- **[DEVELOPER_GUIDE.md](./document/DEVELOPER_GUIDE.md)**: General developer guide
+- **[Collection Template](./templates/collection.template.ts)**: Code template for new collections
 
-## Backward Compatibility
+## Related Files
 
-- All existing services continue to work
-- `DatabaseService` still available but uses adapter internally
-- RxDB-specific code preserved for gradual migration
-- Public APIs remain unchanged
+- `database.service.ts`: Main service for database operations
+- `network-status.service.ts`: Network status monitoring for offline-first operations
+- `core/collection-registry.ts`: Central collection registry
 
-## Future Enhancements
+---
 
-- [ ] Add PouchDB adapter
-- [ ] Add WatermelonDB adapter
-- [ ] Add server-side adapter (REST/GraphQL direct sync)
-- [ ] Performance monitoring and metrics
-- [ ] Database migration utilities
+**Last Updated**: 2025-01-XX
+**Version**: 3.0 (Table-Based Organization)

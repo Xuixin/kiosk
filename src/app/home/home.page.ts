@@ -8,7 +8,7 @@ import {
   effect,
 } from '@angular/core';
 import { FlowControllerService } from '../flow-services/flow-controller.service';
-import { TransactionService } from '../core/Database/facade';
+import { TransactionService } from '../core/Database/collections/txn';
 import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,

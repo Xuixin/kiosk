@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 // App events not used for now; only network events per requirement
 import { Network } from '@capacitor/network';
-import { LogClientFacade } from '../Database/facade/log-client.service';
+import { LogClientFacade } from '../Database/collections/log_client';
 import { NetworkStatusService } from '../Database/network-status.service';
 import { ClientIdentityService } from '../identity/client-identity.service';
 
