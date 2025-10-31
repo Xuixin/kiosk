@@ -35,3 +35,12 @@ export const DOOR_SCHEMA_LITERAL: RxJsonSchema<DoorDocument> = {
 
 export const DOOR_SCHEMA = DOOR_SCHEMA_LITERAL;
 export type DoorDocumentType = DoorDocument;
+
+// Export adapter-compatible schema
+import { SchemaDefinition } from '../Database/adapter';
+import { convertRxDBSchemaToAdapter } from './schema-converter';
+
+export const DOOR_SCHEMA_ADAPTER: SchemaDefinition = convertRxDBSchemaToAdapter(
+  'door',
+  DOOR_SCHEMA as any,
+);

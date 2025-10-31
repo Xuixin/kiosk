@@ -52,3 +52,12 @@ export type RxLogDocumentType = ExtractDocumentTypeFromTypedRxJsonSchema<
   typeof logSchema
 >;
 export const LOG_SCHEMA: RxJsonSchema<RxLogDocumentType> = LOG_SCHEMA_LITERAL;
+
+// Export adapter-compatible schema
+import { SchemaDefinition } from '../Database/adapter';
+import { convertRxDBSchemaToAdapter } from './schema-converter';
+
+export const LOG_SCHEMA_ADAPTER: SchemaDefinition = convertRxDBSchemaToAdapter(
+  'log',
+  LOG_SCHEMA as any,
+);

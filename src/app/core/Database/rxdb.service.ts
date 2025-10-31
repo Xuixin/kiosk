@@ -8,6 +8,7 @@ import {
   DOOR_SCHEMA,
   LOG_CLIENT_SCHEMA,
   LOG_SCHEMA,
+  convertRxDBSchemaToAdapter,
 } from '../schema';
 
 import { RxReactivityFactory, createRxDatabase } from 'rxdb/plugins/core';
@@ -30,34 +31,16 @@ environment.addRxDBPlugins();
 const DATABASE_NAME = 'kiosk_db';
 
 /**
- * Convert RxDB schema to adapter SchemaDefinition format
- */
-function convertSchemaToAdapter(
-  name: string,
-  rxdbSchema: any,
-): SchemaDefinition {
-  return {
-    name,
-    title: rxdbSchema.title || name,
-    description: rxdbSchema.description,
-    version: rxdbSchema.version || 0,
-    primaryKey: rxdbSchema.primaryKey || 'id',
-    properties: rxdbSchema.properties || {},
-    required: rxdbSchema.required || [],
-    indexes: rxdbSchema.indexes,
-  };
-}
-
-/**
  * Get adapter-compatible schemas
+ * Uses the shared schema converter utility for consistent conversion
  */
 function getAdapterSchemas(): SchemaDefinition[] {
   return [
-    convertSchemaToAdapter('txn', TXN_SCHEMA),
-    convertSchemaToAdapter('handshake', HANDSHAKE_SCHEMA),
-    convertSchemaToAdapter('door', DOOR_SCHEMA),
-    convertSchemaToAdapter('log_client', LOG_CLIENT_SCHEMA),
-    convertSchemaToAdapter('log', LOG_SCHEMA),
+    convertRxDBSchemaToAdapter('txn', TXN_SCHEMA as any),
+    convertRxDBSchemaToAdapter('handshake', HANDSHAKE_SCHEMA as any),
+    convertRxDBSchemaToAdapter('door', DOOR_SCHEMA as any),
+    convertRxDBSchemaToAdapter('log_client', LOG_CLIENT_SCHEMA as any),
+    convertRxDBSchemaToAdapter('log', LOG_SCHEMA as any),
   ];
 }
 

@@ -45,3 +45,10 @@ export const LOG_CLIENT_SCHEMA_LITERAL: RxJsonSchema<LogClientDocument> = {
 
 export const LOG_CLIENT_SCHEMA = LOG_CLIENT_SCHEMA_LITERAL;
 export type LogClientDocumentType = LogClientDocument;
+
+// Export adapter-compatible schema
+import { SchemaDefinition } from '../Database/adapter';
+import { convertRxDBSchemaToAdapter } from './schema-converter';
+
+export const LOG_CLIENT_SCHEMA_ADAPTER: SchemaDefinition =
+  convertRxDBSchemaToAdapter('log_client', LOG_CLIENT_SCHEMA as any);

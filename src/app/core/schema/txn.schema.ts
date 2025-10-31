@@ -49,3 +49,12 @@ export type RxTxnDocumentType = ExtractDocumentTypeFromTypedRxJsonSchema<
   typeof txnSchema
 >;
 export const TXN_SCHEMA: RxJsonSchema<RxTxnDocumentType> = TXN_SCHEMA_LITERAL;
+
+// Export adapter-compatible schema
+import { SchemaDefinition } from '../Database/adapter';
+import { convertRxDBSchemaToAdapter } from './schema-converter';
+
+export const TXN_SCHEMA_ADAPTER: SchemaDefinition = convertRxDBSchemaToAdapter(
+  'txn',
+  TXN_SCHEMA as any,
+);

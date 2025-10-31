@@ -69,3 +69,10 @@ export const HANDSHAKE_SCHEMA_LITERAL: RxJsonSchema<HandshakeDocument> = {
 
 export const HANDSHAKE_SCHEMA = HANDSHAKE_SCHEMA_LITERAL;
 export type HandshakeDocumentType = HandshakeDocument;
+
+// Export adapter-compatible schema
+import { SchemaDefinition } from '../Database/adapter';
+import { convertRxDBSchemaToAdapter } from './schema-converter';
+
+export const HANDSHAKE_SCHEMA_ADAPTER: SchemaDefinition =
+  convertRxDBSchemaToAdapter('handshake', HANDSHAKE_SCHEMA as any);
