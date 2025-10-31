@@ -1,28 +1,23 @@
 import { Injectable, inject } from '@angular/core';
-import { AdapterProviderService } from '../factory/adapter-provider.service';
-import { CollectionAdapter } from '../adapter';
 import { LogClientDocument } from '../../schema/log-client.schema';
 import { Observable, map } from 'rxjs';
 import { ClientIdentityService } from '../../identity/client-identity.service';
+import { BaseFacadeService } from './base-facade.service';
+import { COLLECTION_NAMES } from '../config/collection-registry';
 
 @Injectable({ providedIn: 'root' })
-export class LogClientFacade {
-  private readonly adapterProvider = inject(AdapterProviderService);
+export class LogClientFacade extends BaseFacadeService<any> {
   private readonly identity = inject(ClientIdentityService);
 
-  private get collection(): CollectionAdapter<any> | null {
-    try {
-      if (!this.adapterProvider.isReady()) {
-        return null;
-      }
-      const adapter = this.adapterProvider.getAdapter();
-      // Use 'any' since LogClientDocument doesn't extend BaseDocument (missing client_updated_at)
-      // The adapter will work correctly with the actual document structure
-      return adapter.getCollection<any>('log_client');
-    } catch (error) {
-      console.warn('LogClient collection not available yet:', error);
-      return null;
-    }
+  protected getCollectionName(): string {
+    return COLLECTION_NAMES.LOG_CLIENT;
+  }
+
+  /**
+   * No subscriptions needed - service uses direct queries
+   */
+  protected setupSubscriptions(): void {
+    // LogClient service uses direct queries instead of subscriptions
   }
 
   async append(

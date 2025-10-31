@@ -15,6 +15,7 @@ import {
   setupDebugRxDB,
 } from './adapters/rxdb';
 import { RxTxnsDatabase } from './adapters/rxdb';
+import { CollectionRegistry } from './config/collection-registry';
 
 let GLOBAL_DB_SERVICE: DatabaseService | undefined;
 let initState: null | Promise<any> = null;
@@ -24,52 +25,64 @@ let DB_INSTANCE: RxTxnsDatabase;
  * Replication service configuration
  */
 interface ReplicationServiceConfig {
-  name: string;
+  collectionName: string;
   service: any;
   collectionKey: keyof RxTxnsDatabase['collections'];
   replicationId: string;
 }
 
 /**
- * Initialize replication services
+ * Initialize replication services using collection registry
  * Returns array of service configs for parallel registration
  */
 function initializeReplicationServices(
   networkStatusService: NetworkStatusService,
   identityService: ClientIdentityService,
 ): ReplicationServiceConfig[] {
-  return [
-    {
-      name: 'Transaction',
-      service: new TransactionReplicationService(
-        networkStatusService,
-        identityService,
-      ),
-      collectionKey: 'txn',
-      replicationId: 'txn-graphql-replication',
-    },
-    {
-      name: 'Handshake',
-      service: new HandshakeReplicationService(networkStatusService),
-      collectionKey: 'handshake',
-      replicationId: 'handshake-graphql-replication',
-    },
-    {
-      name: 'Door',
-      service: new DoorReplicationService(networkStatusService),
-      collectionKey: 'door',
-      replicationId: 'door-graphql-replication',
-    },
-    {
-      name: 'LogClient',
-      service: new LogClientReplicationService(
-        networkStatusService,
-        identityService,
-      ),
-      collectionKey: 'log_client',
-      replicationId: 'log-client-graphql-replication',
-    },
-  ];
+  const configs: ReplicationServiceConfig[] = [];
+
+  // Get all collections from registry
+  const collections = CollectionRegistry.getAll();
+
+  for (const metadata of collections) {
+    let service: any;
+
+    // Create appropriate replication service based on collection name
+    switch (metadata.collectionName) {
+      case 'txn':
+        service = new TransactionReplicationService(
+          networkStatusService,
+          identityService,
+        );
+        break;
+      case 'handshake':
+        service = new HandshakeReplicationService(networkStatusService);
+        break;
+      case 'door':
+        service = new DoorReplicationService(networkStatusService);
+        break;
+      case 'log_client':
+        service = new LogClientReplicationService(
+          networkStatusService,
+          identityService,
+        );
+        break;
+      default:
+        console.warn(
+          `No replication service factory for collection: ${metadata.collectionName}`,
+        );
+        continue;
+    }
+
+    configs.push({
+      collectionName: metadata.collectionName,
+      service,
+      collectionKey: metadata.collectionKey,
+      replicationId: metadata.replicationId,
+    });
+  }
+
+  return configs;
 }
 
 /**
@@ -78,33 +91,49 @@ function initializeReplicationServices(
 async function registerReplication(
   config: ReplicationServiceConfig,
   dbInstance: RxTxnsDatabase,
-): Promise<{ name: string; success: boolean }> {
+): Promise<{ collectionName: string; success: boolean }> {
   try {
     const collection = dbInstance.collections[config.collectionKey];
     const replication = await config.service.register_replication(
       collection as any,
       config.replicationId,
     );
-    return { name: config.name, success: !!replication };
+    return { collectionName: config.collectionName, success: !!replication };
   } catch (error) {
-    console.error(`Error registering ${config.name} replication:`, error);
-    return { name: config.name, success: false };
+    console.error(
+      `Error registering ${config.collectionName} replication:`,
+      error,
+    );
+    return { collectionName: config.collectionName, success: false };
   }
 }
 
 /**
  * Set replication services in DatabaseService
- * All services are set simultaneously (synchronous batch operation)
+ * Uses collection registry to map services to collection names
  */
 function setReplicationServices(configs: ReplicationServiceConfig[]) {
   if (!GLOBAL_DB_SERVICE) return;
 
-  // All setters execute immediately (synchronous, no awaiting needed)
+  // Use registry to map collection names to setter methods
   configs.forEach((config) => {
-    const method = GLOBAL_DB_SERVICE![
-      `set${config.name}ReplicationService` as keyof DatabaseService
-    ] as any;
-    method?.(config.service);
+    const metadata = CollectionRegistry.get(config.collectionName);
+    if (!metadata) {
+      console.warn(`Collection ${config.collectionName} not found in registry`);
+      return;
+    }
+
+    // Use dynamic method resolution based on service name from registry
+    const methodName =
+      `set${metadata.serviceName}ReplicationService` as keyof DatabaseService;
+    const method = GLOBAL_DB_SERVICE![methodName] as any;
+    if (method && typeof method === 'function') {
+      method(config.service);
+    } else {
+      console.warn(
+        `Setter method ${methodName} not found for collection ${config.collectionName}`,
+      );
+    }
   });
 }
 
@@ -164,11 +193,13 @@ export async function initDatabase(injector: Injector) {
 
       // Log results
       replicationResults.forEach((result) => {
+        const metadata = CollectionRegistry.get(result.collectionName);
+        const displayName = metadata?.displayName || result.collectionName;
         if (result.success) {
-          console.log(`DatabaseService: ${result.name} replication started`);
+          console.log(`DatabaseService: ${displayName} replication started`);
         } else {
           console.log(
-            `DatabaseService: ${result.name} replication not started (offline or error)`,
+            `DatabaseService: ${displayName} replication not started (offline or error)`,
           );
         }
       });
@@ -197,20 +228,44 @@ export class DatabaseService {
     GLOBAL_DB_SERVICE = this;
   }
 
+  /**
+   * Set replication service by collection name
+   * Uses collection registry for type-safe access
+   */
+  setReplicationServiceByCollection(
+    collectionName: string,
+    service: any,
+  ): void {
+    const metadata = CollectionRegistry.get(collectionName);
+    if (!metadata) {
+      console.warn(
+        `Collection ${collectionName} not found in registry, using collection name as key`,
+      );
+      this.replicationServices.set(collectionName, service);
+      return;
+    }
+    // Use collection name from registry (not service name) for consistency
+    this.replicationServices.set(metadata.collectionName, service);
+  }
+
+  /**
+   * Backward compatibility setters
+   * These use collection registry internally
+   */
   setReplicationService(service: TransactionReplicationService) {
-    this.replicationServices.set('transaction', service);
+    this.setReplicationServiceByCollection('txn', service);
   }
 
   setHandshakeReplicationService(service: HandshakeReplicationService) {
-    this.replicationServices.set('handshake', service);
+    this.setReplicationServiceByCollection('handshake', service);
   }
 
   setDoorReplicationService(service: DoorReplicationService) {
-    this.replicationServices.set('door', service);
+    this.setReplicationServiceByCollection('door', service);
   }
 
   setLogClientReplicationService(service: LogClientReplicationService) {
-    this.replicationServices.set('logClient', service);
+    this.setReplicationServiceByCollection('log_client', service);
   }
 
   /**

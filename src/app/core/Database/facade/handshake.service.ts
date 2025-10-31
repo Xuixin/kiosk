@@ -1,9 +1,8 @@
-import { Injectable, Signal, computed, inject } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Injectable, Signal } from '@angular/core';
+import { Observable } from 'rxjs';
 import { HandshakeDocument, HandshakeEvent } from '../../schema';
-import { AdapterProviderService } from '../factory/adapter-provider.service';
-import { CollectionAdapter } from '../adapter';
+import { BaseFacadeService } from './base-facade.service';
+import { COLLECTION_NAMES } from '../config/collection-registry';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 /**
@@ -13,41 +12,35 @@ import { toSignal } from '@angular/core/rxjs-interop';
 @Injectable({
   providedIn: 'root',
 })
-export class HandshakeService {
-  private readonly adapterProvider = inject(AdapterProviderService);
-
-  /**
-   * Get the handshake collection adapter
-   */
-  private get handshakeCollection(): CollectionAdapter<HandshakeDocument> | null {
-    try {
-      if (!this.adapterProvider.isReady()) {
-        return null;
-      }
-      const adapter = this.adapterProvider.getAdapter();
-      return adapter.getCollection<HandshakeDocument>('handshake');
-    } catch (error) {
-      console.warn('Handshake collection not available yet:', error);
-      return null;
-    }
-  }
-
-  // Reactive queries using adapter
-  private get allHandshakes$(): Observable<HandshakeDocument[]> {
-    const collection = this.handshakeCollection;
-    if (!collection) {
-      return new Observable((observer) => observer.next([]));
-    }
-    return collection.find$();
-  }
-
+export class HandshakeService extends BaseFacadeService<HandshakeDocument> {
   /**
    * Signal containing all handshakes
+   * Uses toSignal for automatic reactive updates
    */
   public readonly handshakes: Signal<HandshakeDocument[]> = toSignal(
     this.allHandshakes$,
     { initialValue: [] },
   );
+
+  protected getCollectionName(): string {
+    return COLLECTION_NAMES.HANDSHAKE;
+  }
+
+  /**
+   * No subscriptions needed - using toSignal for reactivity
+   */
+  protected setupSubscriptions(): void {
+    // Handshake service uses toSignal instead of manual subscriptions
+  }
+
+  // Reactive queries using adapter
+  private get allHandshakes$(): Observable<HandshakeDocument[]> {
+    const collection = this.collection;
+    if (!collection) {
+      return new Observable((observer) => observer.next([]));
+    }
+    return collection.find$();
+  }
 
   /**
    * Get all handshakes as observable
@@ -60,7 +53,7 @@ export class HandshakeService {
    * Get handshake by ID
    */
   async getHandshakeById(id: string): Promise<HandshakeDocument | null> {
-    const collection = this.handshakeCollection;
+    const collection = this.collection;
     if (!collection) {
       return null;
     }
@@ -72,7 +65,7 @@ export class HandshakeService {
    * Get handshakes by transaction ID
    */
   getHandshakesByTxnId$(txnId: string): Observable<HandshakeDocument[]> {
-    const collection = this.handshakeCollection;
+    const collection = this.collection;
     if (!collection) {
       return new Observable((observer) => observer.next([]));
     }
@@ -88,7 +81,7 @@ export class HandshakeService {
       'client_created_at' | 'client_updated_at'
     >,
   ): Promise<HandshakeDocument> {
-    const collection = this.handshakeCollection;
+    const collection = this.collection;
     if (!collection) {
       throw new Error('Handshake collection not available');
     }
@@ -112,7 +105,7 @@ export class HandshakeService {
     id: string,
     updates: Partial<HandshakeDocument>,
   ): Promise<HandshakeDocument> {
-    const collection = this.handshakeCollection;
+    const collection = this.collection;
     if (!collection) {
       throw new Error('Handshake collection not available');
     }

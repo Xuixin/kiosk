@@ -1,7 +1,7 @@
-import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
-import { AdapterProviderService } from '../factory/adapter-provider.service';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { TransactionReplicationService } from '../replication';
-import { Subscription } from 'rxjs';
+import { BaseFacadeService } from './base-facade.service';
+import { COLLECTION_NAMES } from '../config/collection-registry';
 
 export interface TransactionStats {
   total: number;
@@ -17,11 +17,8 @@ export interface TransactionStats {
 @Injectable({
   providedIn: 'root',
 })
-export class TransactionService implements OnDestroy {
-  private readonly adapterProvider = inject(AdapterProviderService);
+export class TransactionService extends BaseFacadeService<any> {
   private readonly replicationService = inject(TransactionReplicationService);
-  private dbSubscription?: Subscription;
-  private replicationSubscription?: Subscription;
 
   // Signals for reactive data
   private _transactions = signal<any[]>([]);
@@ -44,68 +41,51 @@ export class TransactionService implements OnDestroy {
   });
 
   constructor() {
-    // Setup subscriptions after database is ready
-    setTimeout(() => {
-      this.setupSubscriptions();
-    }, 2000);
+    super();
+    // Initialize subscriptions when adapter is ready
+    this.ensureInitialized();
   }
 
-  ngOnDestroy() {
-    if (this.dbSubscription) {
-      this.dbSubscription.unsubscribe();
-    }
-    if (this.replicationSubscription) {
-      this.replicationSubscription.unsubscribe();
-    }
+  protected getCollectionName(): string {
+    return COLLECTION_NAMES.TXN;
   }
 
   /**
    * Setup database and replication subscriptions
    */
-  private setupSubscriptions() {
-    try {
-      console.log('📊 Setting up transaction subscriptions...');
+  protected setupSubscriptions(): void {
+    const collection = this.collection;
+    if (!collection) {
+      console.warn('Transaction collection not available yet');
+      return;
+    }
 
-      // Wait for adapter to be ready, then subscribe to collection changes
-      this.adapterProvider.waitUntilReady().then(() => {
-        const adapter = this.adapterProvider.getAdapter();
-        const collection = adapter.getCollection('txn');
+    // Subscribe to local database changes using adapter
+    const dbSubscription = collection.find$().subscribe({
+      next: (txns) => {
+        console.log('📊 Local database updated:', txns.length, 'transactions');
+        this._transactions.set(txns as any[]);
+      },
+      error: (error) => {
+        console.error('❌ Error in database subscription:', error);
+      },
+    });
+    this.addSubscription(dbSubscription);
 
-        // Subscribe to local database changes using adapter
-        this.dbSubscription = collection.find$().subscribe({
-          next: (txns) => {
-            console.log(
-              '📊 Local database updated:',
-              txns.length,
-              'transactions',
-            );
-            // Convert to plain objects if needed (adapter should already return plain objects)
-            this._transactions.set(txns as any[]);
+    // Subscribe to replication events if available
+    if (this.replicationService.replicationState) {
+      const replicationSubscription =
+        this.replicationService.replicationState.received$.subscribe({
+          next: (received) => {
+            console.log('🔄 Replication received:', received);
+            // Refresh transactions when replication receives data
+            this.refreshTransactions();
           },
           error: (error) => {
-            console.error('❌ Error in database subscription:', error);
+            console.error('❌ Error in replication subscription:', error);
           },
         });
-      });
-
-      // Subscribe to replication events if available
-      if (this.replicationService.replicationState) {
-        this.replicationSubscription =
-          this.replicationService.replicationState.received$.subscribe({
-            next: (received) => {
-              console.log('🔄 Replication received:', received);
-              // Refresh transactions when replication receives data
-              this.refreshTransactions();
-            },
-            error: (error) => {
-              console.error('❌ Error in replication subscription:', error);
-            },
-          });
-      }
-
-      console.log('✅ Transaction subscriptions setup completed');
-    } catch (error) {
-      console.error('❌ Error setting up subscriptions:', error);
+      this.addSubscription(replicationSubscription);
     }
   }
 
@@ -113,106 +93,85 @@ export class TransactionService implements OnDestroy {
    * Find all transactions
    */
   async findAll() {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txns = await collection.find();
-      this._transactions.set(txns as any[]);
-      return txns as any[];
-    } catch (error) {
-      console.error('❌ Error finding all transactions:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txns = await collection.find();
+    this._transactions.set(txns as any[]);
+    return txns as any[];
   }
 
   /**
    * Find transaction by ID
    */
   async findById(id: string) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txn = await collection.findOne(id);
-      return txn as any;
-    } catch (error) {
-      console.error('❌ Error finding transaction by id:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txn = await collection.findOne(id);
+    return txn as any;
   }
 
   /**
    * Find transactions by status
    */
   async findByStatus(status: string) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txns = await collection.find({ status } as any);
-      return txns as any[];
-    } catch (error) {
-      console.error('❌ Error finding transactions by status:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txns = await collection.find({ status } as any);
+    return txns as any[];
   }
 
   /**
    * Create a new transaction
    */
   async create(transaction: any) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txn = await collection.insert(transaction);
-      return txn as any;
-    } catch (error) {
-      console.error('❌ Error creating transaction:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txn = await collection.insert(transaction);
+    return txn as any;
   }
 
   /**
    * Update an existing transaction
    */
   async update(id: string, updates: Partial<any>) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txn = await collection.update(id, updates);
-      return txn as any;
-    } catch (error) {
-      console.error('❌ Error updating transaction:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txn = await collection.update(id, updates);
+    return txn as any;
   }
 
   /**
    * Delete a transaction
    */
   async delete(id: string) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const deleted = await collection.delete(id, false); // Soft delete
-      return deleted;
-    } catch (error) {
-      console.error('❌ Error deleting transaction:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const deleted = await collection.delete(id, false); // Soft delete
+    return deleted;
   }
 
   /**
    * Force delete a transaction (permanent removal from database)
    */
   async forceDelete(id: string) {
-    try {
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const deleted = await collection.delete(id, true); // Hard delete
-      return deleted;
-    } catch (error) {
-      console.error('❌ Error force deleting transaction:', error);
-      throw error;
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const deleted = await collection.delete(id, true); // Hard delete
+    return deleted;
   }
 
   /**
@@ -228,17 +187,14 @@ export class TransactionService implements OnDestroy {
    * Manually refresh transactions
    */
   async refreshTransactions() {
-    try {
-      console.log('🔄 Manually refreshing transactions...');
-      const adapter = this.adapterProvider.getAdapter();
-      const collection = adapter.getCollection('txn');
-      const txns = await collection.find();
-      this._transactions.set(txns as any[]);
-      console.log('✅ Manually refreshed transactions:', txns.length);
-      return txns as any[];
-    } catch (error) {
-      console.error('❌ Error refreshing transactions:', error);
-      throw error;
+    console.log('🔄 Manually refreshing transactions...');
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('Transaction collection not available');
     }
+    const txns = await collection.find();
+    this._transactions.set(txns as any[]);
+    console.log('✅ Manually refreshed transactions:', txns.length);
+    return txns as any[];
   }
 }
