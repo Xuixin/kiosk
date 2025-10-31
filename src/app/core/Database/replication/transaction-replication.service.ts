@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { replicateGraphQL } from 'rxdb/plugins/replication-graphql';
 import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
 import { RxCollection } from 'rxdb';
-import { RxTxnCollection } from '../RxDB.D';
+import { RxTxnCollection } from '../adapters/rxdb/types';
 import { RxTxnDocumentType } from '../../schema';
 import { environment } from 'src/environments/environment';
 import { NetworkStatusService } from '../network-status.service';

@@ -19,7 +19,7 @@ import { BaseDocument } from '../../../schema/base-schema';
 import { RxDBCollectionAdapter } from './rxdb-collection-adapter';
 import { RxDBReplicationAdapter } from './rxdb-replication-adapter';
 import { environment } from '../../../../../environments/environment';
-import { RxTxnsDatabase, RxTxnsCollections } from '../../../Database/RxDB.D';
+import { RxTxnsDatabase, RxTxnsCollections } from './types';
 
 /**
  * RxDB implementation of DBAdapter

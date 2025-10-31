@@ -21,7 +21,11 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { MessageService } from 'primeng/api';
 import { ConfirmationService } from 'primeng/api';
 import { providePrimeNG } from 'primeng/config';
-import { initDatabase, DatabaseService } from './core/Database/rxdb.service';
+import {
+  initDatabase,
+  DatabaseService,
+} from './core/Database/database.service';
+import { AdapterProviderService } from './core/Database/factory';
 import { WorkflowPreloadService } from './flow-services/workflow-preload.service';
 import Aura from '@primeng/themes/aura';
 import { CommonModule } from '@angular/common';
@@ -42,7 +46,11 @@ import { ClientEventLoggingService } from './core/monitoring/client-event-loggin
       useClass: IonicRouteStrategy,
     },
     provideIonicAngular(),
-    // * database
+    // * database adapter system
+    // AdapterProviderService is providedIn: 'root', but listed here for clarity
+    AdapterProviderService,
+    // Initialize database using adapter pattern
+    // This initializes the database adapter (currently RxDB) with all schemas
     {
       provide: APP_INITIALIZER,
       useFactory: (injector: Injector) => () => initDatabase(injector),

@@ -9,7 +9,7 @@ import {
   ReplicationState,
   ReplicationEvent,
 } from '../../adapter';
-import { RxTxnsDatabase } from '../../../Database/RxDB.D';
+import { RxTxnsDatabase } from './types';
 
 /**
  * RxDB implementation of ReplicationAdapter

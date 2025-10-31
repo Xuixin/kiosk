@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DatabaseService } from 'src/app/core/Database/rxdb.service';
+import { DatabaseService } from 'src/app/core/Database/database.service';
 import { HandshakeDocument, RxTxnDocumentType } from 'src/app/core/schema';
 import { HandshakeService } from 'src/app/core/Database/facade';
 import { UUIDUtils } from 'src/app/utils/uuid.utils';

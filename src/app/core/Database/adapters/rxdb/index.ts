@@ -8,3 +8,16 @@
 export { RxDBAdapter } from './rxdb-adapter';
 export { RxDBCollectionAdapter } from './rxdb-collection-adapter';
 export { RxDBReplicationAdapter } from './rxdb-replication-adapter';
+
+// Export RxDB types (now organized in types/ folder)
+export * from './types';
+
+// Export RxDB helpers
+export {
+  DATABASE_NAME,
+  getAdapterSchemas,
+  collectionsSettings,
+  setupDebugRxDB,
+  _createRxDBDatabase,
+} from './rxdb-helpers';
+

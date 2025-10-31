@@ -13,7 +13,7 @@ import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
-import { DatabaseService } from '../core/Database/rxdb.service';
+import { DatabaseService } from '../core/Database/database.service';
 
 @Component({
   selector: 'app-home',
