@@ -15,6 +15,7 @@ export const environment = {
   databaseName: 'kiosk_prod',
   multiInstance: false,
   clientType: 'KIOSK',
+  adapterType: 'rxdb' as const, // Database adapter type: 'rxdb' | 'pouchdb' | 'watermelon' | 'server'
 
   addRxDBPlugins() {
     addRxPlugin(RxDBCleanupPlugin);
