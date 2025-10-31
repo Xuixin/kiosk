@@ -1,9 +1,9 @@
 import { Injectable, Signal, computed, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { RxHandshakeCollection } from '../RxDB.D';
 import { HandshakeDocument, HandshakeEvent } from '../../schema';
-import { DatabaseService } from '../rxdb.service';
+import { AdapterProviderService } from '../factory/adapter-provider.service';
+import { CollectionAdapter } from '../adapter';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 /**
@@ -14,16 +14,32 @@ import { toSignal } from '@angular/core/rxjs-interop';
   providedIn: 'root',
 })
 export class HandshakeService {
-  private readonly dbService = inject(DatabaseService);
-  private readonly handshakeCollection: RxHandshakeCollection =
-    this.dbService.db.handshake;
+  private readonly adapterProvider = inject(AdapterProviderService);
 
-  // Reactive queries using RxDB
-  private readonly allHandshakes$ = this.handshakeCollection
-    .find()
-    .$.pipe(
-      map((docs) => docs.map((doc) => doc.toJSON() as HandshakeDocument)),
-    );
+  /**
+   * Get the handshake collection adapter
+   */
+  private get handshakeCollection(): CollectionAdapter<HandshakeDocument> | null {
+    try {
+      if (!this.adapterProvider.isReady()) {
+        return null;
+      }
+      const adapter = this.adapterProvider.getAdapter();
+      return adapter.getCollection<HandshakeDocument>('handshake');
+    } catch (error) {
+      console.warn('Handshake collection not available yet:', error);
+      return null;
+    }
+  }
+
+  // Reactive queries using adapter
+  private get allHandshakes$(): Observable<HandshakeDocument[]> {
+    const collection = this.handshakeCollection;
+    if (!collection) {
+      return new Observable((observer) => observer.next([]));
+    }
+    return collection.find$();
+  }
 
   /**
    * Signal containing all handshakes
@@ -44,19 +60,23 @@ export class HandshakeService {
    * Get handshake by ID
    */
   async getHandshakeById(id: string): Promise<HandshakeDocument | null> {
-    const doc = await this.handshakeCollection.findOne(id).exec();
-    return doc ? (doc.toJSON() as HandshakeDocument) : null;
+    const collection = this.handshakeCollection;
+    if (!collection) {
+      return null;
+    }
+    const doc = await collection.findOne(id);
+    return doc;
   }
 
   /**
    * Get handshakes by transaction ID
    */
   getHandshakesByTxnId$(txnId: string): Observable<HandshakeDocument[]> {
-    return this.handshakeCollection
-      .find({ selector: { transaction_id: txnId } })
-      .$.pipe(
-        map((docs) => docs.map((doc) => doc.toJSON() as HandshakeDocument)),
-      );
+    const collection = this.handshakeCollection;
+    if (!collection) {
+      return new Observable((observer) => observer.next([]));
+    }
+    return collection.find$({ transaction_id: txnId } as any);
   }
 
   /**
@@ -68,15 +88,21 @@ export class HandshakeService {
       'client_created_at' | 'client_updated_at'
     >,
   ): Promise<HandshakeDocument> {
+    const collection = this.handshakeCollection;
+    if (!collection) {
+      throw new Error('Handshake collection not available');
+    }
+
+    // Adapter will automatically set timestamps if not provided
     const now = Date.now().toString();
-    const newHandshake: HandshakeDocument = {
+    const newHandshake: Partial<HandshakeDocument> = {
       ...handshake,
       client_created_at: now,
       client_updated_at: now,
     };
 
-    const doc = await this.handshakeCollection.insert(newHandshake);
-    return doc.toJSON() as HandshakeDocument;
+    const doc = await collection.insert(newHandshake);
+    return doc;
   }
 
   /**
@@ -86,19 +112,18 @@ export class HandshakeService {
     id: string,
     updates: Partial<HandshakeDocument>,
   ): Promise<HandshakeDocument> {
-    const doc = await this.handshakeCollection.findOne(id).exec();
-    if (!doc) {
-      throw new Error(`Handshake with id ${id} not found`);
+    const collection = this.handshakeCollection;
+    if (!collection) {
+      throw new Error('Handshake collection not available');
     }
 
-    await doc.update({
-      $set: {
-        ...updates,
-        client_updated_at: Date.now().toString(),
-      },
+    // Adapter will automatically update client_updated_at
+    const updatedDoc = await collection.update(id, {
+      ...updates,
+      client_updated_at: Date.now().toString(),
     });
 
-    return doc.toJSON() as HandshakeDocument;
+    return updatedDoc;
   }
 
   /**

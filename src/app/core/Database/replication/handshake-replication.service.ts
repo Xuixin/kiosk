@@ -7,6 +7,7 @@ import { NetworkStatusService } from '../network-status.service';
 import { BaseReplicationService } from './base-replication.service';
 import { HandshakeDocument } from '../../schema';
 import { handshakeQueryBuilder } from '../query-builder/handshake-query-builder';
+import { ReplicationConfig } from '../adapter';
 
 /**
  * Handshake-specific GraphQL replication service
@@ -21,6 +22,30 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
 
   constructor(networkStatus: NetworkStatusService) {
     super(networkStatus);
+    this.collectionName = 'handshake';
+  }
+
+  /**
+   * Build replication configuration for adapter
+   */
+  protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
+    // Simplified config - full implementation would mirror setupReplication logic
+    return {
+      replicationId:
+        this.replicationIdentifier || 'handshake-graphql-replication',
+      collectionName: 'handshake',
+      url: {
+        http: this.graphqlEndpoint,
+        ws: this.graphqlWsEndpoint,
+      },
+      pull: {
+        batchSize: 10,
+      } as any,
+      push: {} as any,
+      live: true,
+      retryTime: 60000,
+      autoStart: true,
+    };
   }
 
   /**

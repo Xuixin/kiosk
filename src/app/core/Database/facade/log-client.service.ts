@@ -1,26 +1,42 @@
 import { Injectable, inject } from '@angular/core';
-import { DatabaseService } from '../rxdb.service';
-import { RxLogClientCollection } from '../RxDB.D';
+import { AdapterProviderService } from '../factory/adapter-provider.service';
+import { CollectionAdapter } from '../adapter';
 import { LogClientDocument } from '../../schema/log-client.schema';
 import { Observable, map } from 'rxjs';
 import { ClientIdentityService } from '../../identity/client-identity.service';
 
 @Injectable({ providedIn: 'root' })
 export class LogClientFacade {
-  private readonly db = inject(DatabaseService);
+  private readonly adapterProvider = inject(AdapterProviderService);
   private readonly identity = inject(ClientIdentityService);
 
-  private get collection(): RxLogClientCollection {
-    return this.db.db.log_client;
+  private get collection(): CollectionAdapter<any> | null {
+    try {
+      if (!this.adapterProvider.isReady()) {
+        return null;
+      }
+      const adapter = this.adapterProvider.getAdapter();
+      // Use 'any' since LogClientDocument doesn't extend BaseDocument (missing client_updated_at)
+      // The adapter will work correctly with the actual document structure
+      return adapter.getCollection<any>('log_client');
+    } catch (error) {
+      console.warn('LogClient collection not available yet:', error);
+      return null;
+    }
   }
 
   async append(
     entry: Partial<LogClientDocument> & { status: string; meta_data: string },
   ): Promise<void> {
+    const collection = this.collection;
+    if (!collection) {
+      throw new Error('LogClient collection not available');
+    }
+
     const now = Date.now().toString();
     const id = entry.id || crypto.randomUUID();
     const client_id = entry.client_id || (await this.identity.getClientId());
-    const doc: LogClientDocument = {
+    const doc: Partial<LogClientDocument> = {
       id,
       client_id,
       type: (entry.type as any) || (this.identity.getClientType() as any),
@@ -31,34 +47,43 @@ export class LogClientFacade {
       diff_time_create: (entry.diff_time_create as any) ?? '',
       server_updated_at: (entry.server_updated_at as any) ?? '',
     };
-    await this.collection.insert(doc as any);
+    await collection.insert(doc);
   }
 
   getLogs$(): Observable<LogClientDocument[]> {
-    return this.collection.find().$ as any;
+    const collection = this.collection;
+    if (!collection) {
+      return new Observable((observer) => observer.next([]));
+    }
+    return collection.find$();
   }
 
   countOfflineEvents$(clientId?: string): Observable<number> {
-    const query = clientId
-      ? this.collection.find({
-          selector: { client_id: clientId, status: 'OFFLINE' },
-        })
-      : this.collection.find({ selector: { status: 'OFFLINE' } });
-    return (query.$ as any).pipe(map((docs: any[]) => docs.length));
+    const collection = this.collection;
+    if (!collection) {
+      return new Observable((observer) => observer.next(0));
+    }
+
+    const selector = clientId
+      ? ({ client_id: clientId, status: 'OFFLINE' } as any)
+      : ({ status: 'OFFLINE' } as any);
+
+    return collection.find$(selector).pipe(map((docs) => docs.length));
   }
 
   async getLastByClient(clientId: string): Promise<LogClientDocument | null> {
-    const docs = await this.collection
-      .find({
-        selector: { client_id: clientId },
-        sort: [{ client_created_at: 'desc' } as any],
-        limit: 1,
-      })
-      .exec();
-    const last = (docs?.[0] as any)?.toJSON?.() as
-      | LogClientDocument
-      | undefined;
-    return last ?? null;
+    const collection = this.collection;
+    if (!collection) {
+      return null;
+    }
+
+    const result = await collection.query({
+      selector: { client_id: clientId } as any,
+      sort: [{ field: 'client_created_at', direction: 'desc' }],
+      limit: 1,
+    });
+
+    return result.documents.length > 0 ? result.documents[0] : null;
   }
 
   async appendIfChanged(params: {

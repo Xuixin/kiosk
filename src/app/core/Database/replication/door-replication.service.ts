@@ -7,6 +7,7 @@ import { NetworkStatusService } from '../network-status.service';
 import { BaseReplicationService } from './base-replication.service';
 import { DoorDocument } from '../../schema/door.schema';
 import { doorQueryBuilder } from '../query-builder/door-query-builder';
+import { ReplicationConfig } from '../adapter';
 
 /**
  * Door-specific GraphQL replication service
@@ -21,6 +22,28 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
 
   constructor(networkStatus: NetworkStatusService) {
     super(networkStatus);
+    this.collectionName = 'door';
+  }
+
+  /**
+   * Build replication configuration for adapter
+   */
+  protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
+    return {
+      replicationId: this.replicationIdentifier || 'door-graphql-replication',
+      collectionName: 'door',
+      url: {
+        http: this.graphqlEndpoint,
+        ws: this.graphqlWsEndpoint,
+      },
+      pull: {
+        batchSize: 10,
+      } as any,
+      push: {} as any,
+      live: true,
+      retryTime: 60000,
+      autoStart: true,
+    };
   }
 
   /**
@@ -160,8 +183,6 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
       this.replicationState.sent$.subscribe((sent) => {
         console.log('📤 Door Replication sent:', sent);
       });
-
-    
     }
 
     return this.replicationState;

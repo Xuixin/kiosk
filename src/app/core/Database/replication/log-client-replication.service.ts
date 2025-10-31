@@ -14,6 +14,7 @@ import {
   PUSH_LOG_CLIENT_MUTATION,
 } from '../query-builder/log-client-builder';
 import { ClientIdentityService } from '../../identity/client-identity.service';
+import { ReplicationConfig } from '../adapter';
 
 /**
  * LogClient-specific GraphQL replication service
@@ -31,6 +32,29 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
     private readonly identity: ClientIdentityService,
   ) {
     super(networkStatus);
+    this.collectionName = 'log_client';
+  }
+
+  /**
+   * Build replication configuration for adapter
+   */
+  protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
+    return {
+      replicationId:
+        this.replicationIdentifier || 'log-client-graphql-replication',
+      collectionName: 'log_client',
+      url: {
+        http: this.graphqlEndpoint,
+        ws: this.graphqlWsEndpoint,
+      },
+      pull: {
+        batchSize: 5,
+      } as any,
+      push: {} as any,
+      live: true,
+      retryTime: 60000,
+      autoStart: true,
+    };
   }
 
   /**

@@ -8,6 +8,7 @@ import { environment } from 'src/environments/environment';
 import { NetworkStatusService } from '../network-status.service';
 import { ClientIdentityService } from '../../identity/client-identity.service';
 import { BaseReplicationService } from './base-replication.service';
+import { ReplicationConfig } from '../adapter';
 import {
   PUSH_TRANSACTION_MUTATION,
   PULL_TRANSACTION_QUERY,
@@ -30,41 +31,25 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     private readonly identity: ClientIdentityService,
   ) {
     super(networkStatus);
+    this.collectionName = 'txn';
   }
 
   /**
-   * Setup transaction-specific GraphQL replication
+   * Build replication configuration for adapter
+   * Returns config with GraphQL-specific options (queryBuilder, etc.)
    */
-  protected async setupReplication(
-    collection: RxCollection,
-  ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any> | undefined> {
-    const txnCollection = collection as unknown as RxTxnCollection;
-
-    console.log('Setting up Transaction GraphQL replication...');
-
-    // Check if app is online before starting replication
-    if (!this.networkStatus.isOnline()) {
-      console.log('⚠️ Application is offline - replication setup skipped');
-      console.log(
-        '📝 Replication will start automatically when connection is restored',
-      );
-      return undefined;
-    }
-
-    this.replicationState = replicateGraphQL<RxTxnDocumentType, any>({
-      collection: txnCollection as any,
-      replicationIdentifier:
-        this.replicationIdentifier || 'txn-graphql-replication',
+  protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
+    return {
+      replicationId: this.replicationIdentifier || 'txn-graphql-replication',
+      collectionName: 'txn',
       url: {
         http: this.graphqlEndpoint,
         ws: this.graphqlWsEndpoint,
       },
-
       pull: {
         batchSize: 5,
-        queryBuilder: (checkpoint, limit) => {
+        queryBuilder: (checkpoint: any, limit: number) => {
           console.log('🔵 Pull Query - checkpoint:', checkpoint);
-
           return {
             query: PULL_TRANSACTION_QUERY,
             variables: {
@@ -78,46 +63,33 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
             },
           };
         },
-
-        streamQueryBuilder: (headers) => {
+        streamQueryBuilder: (headers: any) => {
           console.log('🔄 Stream Query - headers:', headers);
-
           return {
             query: STREAM_TRANSACTION_SUBSCRIPTION,
             variables: {},
           };
         },
-
-        responseModifier: (plainResponse, requestCheckpoint) => {
-          // plainResponse = { pullTransaction: { documents: [...], checkpoint: {...} } }
-          // or { streamTransaction2: { documents: [...], checkpoint: {...} } }
-
+        responseModifier: (plainResponse: any, requestCheckpoint: any) => {
           console.log('🟢 Full Response:', plainResponse);
-
           const pullData =
             plainResponse.pullTransaction ||
             plainResponse.streamTransaction2 ||
             plainResponse;
           const documents = pullData.documents || [];
           const checkpoint = pullData.checkpoint;
-
-          // const filteredDocs = documents.filter((d: any) => d.status !== 'OUT');
-
-          // ✅ Return ข้อมูลจริง
           return {
             documents: documents,
             checkpoint: checkpoint,
           };
         },
-
-        modifier: (doc) => {
+        modifier: (doc: any) => {
           if (doc.status === 'OUT') {
             return {
               ...doc,
               _deleted: true,
             };
           }
-
           return {
             ...doc,
             door_permission:
@@ -126,7 +98,6 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
                 : doc.door_permission,
           };
         },
-
         wsOptions: {
           connectionParams: async () => {
             const client_id = await this.identity.getClientId();
@@ -137,13 +108,11 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
               door_id: client_id,
             };
           },
-
           connectionAckWaitTimeout: 1000,
         },
-      },
-
+      } as any,
       push: {
-        queryBuilder: (docs) => {
+        queryBuilder: (docs: any[]) => {
           const writeRows = docs.map((docRow) => {
             const doc = docRow.newDocumentState;
             return {
@@ -169,7 +138,6 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
               },
             };
           });
-
           return {
             query: PUSH_TRANSACTION_MUTATION,
             variables: {
@@ -177,22 +145,41 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
             },
           };
         },
-
         dataPath: 'data.pushTransaction',
-
-        modifier: (doc) => {
-          return doc;
-        },
-      },
-
+        modifier: (doc: any) => doc,
+      } as any,
       live: true,
       retryTime: 60000,
       autoStart: true,
       waitForLeadership: true,
+      headers: {},
+    };
+  }
 
-      headers: {
-        // 'Authorization': 'Bearer YOUR_TOKEN',
-      },
+  /**
+   * Setup transaction-specific GraphQL replication (legacy direct method)
+   */
+  protected async setupReplication(
+    collection: RxCollection,
+  ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any> | undefined> {
+    const txnCollection = collection as unknown as RxTxnCollection;
+
+    console.log('Setting up Transaction GraphQL replication (direct mode)...');
+
+    // Check if app is online before starting replication
+    if (!this.networkStatus.isOnline()) {
+      console.log('⚠️ Application is offline - replication setup skipped');
+      console.log(
+        '📝 Replication will start automatically when connection is restored',
+      );
+      return undefined;
+    }
+
+    // Use config from buildReplicationConfig() and merge with collection
+    const config = this.buildReplicationConfig() as any;
+    this.replicationState = replicateGraphQL<RxTxnDocumentType, any>({
+      collection: txnCollection as any,
+      ...config,
     });
 
     if (this.replicationState) {
@@ -200,10 +187,6 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       this.replicationState.error$.subscribe(async (err: any) => {
         // Log error but don't crash - offline-first approach
         console.warn('⚠️ Transaction Replication error:', err);
-
-        
-
-  
       });
 
       // เพิ่ม logging สำหรับ pull events

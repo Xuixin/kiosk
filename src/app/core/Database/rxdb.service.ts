@@ -21,10 +21,45 @@ import {
 } from './replication';
 import { NetworkStatusService } from './network-status.service';
 import { ClientIdentityService } from '../identity/client-identity.service';
+import { AdapterProviderService } from './factory';
+import { SchemaDefinition } from './adapter';
+import { RxDBAdapter } from './adapters';
 
 environment.addRxDBPlugins();
 
 const DATABASE_NAME = 'kiosk_db';
+
+/**
+ * Convert RxDB schema to adapter SchemaDefinition format
+ */
+function convertSchemaToAdapter(
+  name: string,
+  rxdbSchema: any,
+): SchemaDefinition {
+  return {
+    name,
+    title: rxdbSchema.title || name,
+    description: rxdbSchema.description,
+    version: rxdbSchema.version || 0,
+    primaryKey: rxdbSchema.primaryKey || 'id',
+    properties: rxdbSchema.properties || {},
+    required: rxdbSchema.required || [],
+    indexes: rxdbSchema.indexes,
+  };
+}
+
+/**
+ * Get adapter-compatible schemas
+ */
+function getAdapterSchemas(): SchemaDefinition[] {
+  return [
+    convertSchemaToAdapter('txn', TXN_SCHEMA),
+    convertSchemaToAdapter('handshake', HANDSHAKE_SCHEMA),
+    convertSchemaToAdapter('door', DOOR_SCHEMA),
+    convertSchemaToAdapter('log_client', LOG_CLIENT_SCHEMA),
+    convertSchemaToAdapter('log', LOG_SCHEMA),
+  ];
+}
 
 const collectionsSettings = {
   txn: {
@@ -120,11 +155,30 @@ export async function initDatabase(injector: Injector) {
   }
 
   const identityService = injector.get(ClientIdentityService);
+  const adapterProvider = injector.get(
+    AdapterProviderService,
+  ) as AdapterProviderService;
 
   if (!initState) {
-    console.log('initDatabase()');
-    initState = _create(injector).then(async (db) => {
-      DB_INSTANCE = db;
+    console.log('initDatabase() - using adapter pattern');
+
+    // Initialize adapter with schemas
+    const schemas = getAdapterSchemas();
+    const adapterConfig = {
+      type: (environment.adapterType || 'rxdb') as any,
+    };
+
+    await adapterProvider.initialize(schemas, adapterConfig);
+
+    // For backward compatibility, get the RxDB instance from RxDBAdapter
+    const adapter = adapterProvider.getAdapter();
+    if (adapter instanceof RxDBAdapter) {
+      DB_INSTANCE = adapter.getRxDB();
+    } else {
+      throw new Error('Expected RxDBAdapter for backward compatibility');
+    }
+
+    initState = Promise.resolve().then(async () => {
       // สร้าง replication หลังจากสร้าง database แล้ว
       const networkStatusService = new NetworkStatusService();
 
@@ -154,27 +208,27 @@ export async function initDatabase(injector: Injector) {
         logClientReplicationService,
       );
 
-      // Register replications
+      // Register replications (use DB_INSTANCE which was set above)
       const txnReplication =
         await transactionReplicationService.register_replication(
-          db.txn as any,
+          DB_INSTANCE.txn as any,
           'txn-graphql-replication',
         );
 
       const handshakeReplication =
         await handshakeReplicationService.register_replication(
-          db.handshake as any,
+          DB_INSTANCE.handshake as any,
           'handshake-graphql-replication',
         );
 
       const doorReplication = await doorReplicationService.register_replication(
-        db.door as any,
+        DB_INSTANCE.door as any,
         'door-graphql-replication',
       );
 
       const logClientReplication =
         await logClientReplicationService.register_replication(
-          db.log_client as any,
+          DB_INSTANCE.log_client as any,
           'log-client-graphql-replication',
         );
 
@@ -211,6 +265,7 @@ export async function initDatabase(injector: Injector) {
       }
     });
   }
+
   await initState;
 }
 
