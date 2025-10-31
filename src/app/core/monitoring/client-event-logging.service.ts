@@ -20,7 +20,6 @@ export class ClientEventLoggingService {
   ) {}
 
   async init(): Promise<void> {
-
     if (this.initialized) {
       console.log('⚠️ [ClientEventLogging] Already initialized, skipping');
       return;

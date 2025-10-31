@@ -333,6 +333,17 @@ export class RegistryWalkinSummaryComponent
           showBackdrop: true,
           cssClass: ['subflow-modal-receipt', 'modal-blur-backdrop'], // keep blur backdrop
         });
+      } else {
+        await this.modals.openModal({
+          component: DoorOfflineReceiptModal,
+          nodeId: this.node?.id || 'summary',
+          flowId: this.currentFlow()?.id || 'registry',
+          type: 'nested',
+          data: receiptData,
+          allowBackdropDismiss: false,
+          showBackdrop: true,
+          cssClass: ['subflow-modal-receipt', 'modal-blur-backdrop'], // keep blur backdrop
+        });
       }
     } catch (e) {
       console.warn('[Summary] Unable to resolve doors for offline check', e);
