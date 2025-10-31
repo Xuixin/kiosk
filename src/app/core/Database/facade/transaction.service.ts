@@ -1,5 +1,5 @@
 import { Injectable, signal, computed, inject, OnDestroy } from '@angular/core';
-import { DatabaseService } from '../rxdb.service';
+import { AdapterProviderService } from '../factory/adapter-provider.service';
 import { TransactionReplicationService } from '../replication';
 import { Subscription } from 'rxjs';
 
@@ -18,7 +18,7 @@ export interface TransactionStats {
   providedIn: 'root',
 })
 export class TransactionService implements OnDestroy {
-  private readonly databaseService = inject(DatabaseService);
+  private readonly adapterProvider = inject(AdapterProviderService);
   private readonly replicationService = inject(TransactionReplicationService);
   private dbSubscription?: Subscription;
   private replicationSubscription?: Subscription;
@@ -66,19 +66,26 @@ export class TransactionService implements OnDestroy {
     try {
       console.log('📊 Setting up transaction subscriptions...');
 
-      // Subscribe to local database changes
-      this.dbSubscription = this.databaseService.db.txn.find().$.subscribe({
-        next: (txns) => {
-          console.log(
-            '📊 Local database updated:',
-            txns.length,
-            'transactions',
-          );
-          this._transactions.set(txns);
-        },
-        error: (error) => {
-          console.error('❌ Error in database subscription:', error);
-        },
+      // Wait for adapter to be ready, then subscribe to collection changes
+      this.adapterProvider.waitUntilReady().then(() => {
+        const adapter = this.adapterProvider.getAdapter();
+        const collection = adapter.getCollection('txn');
+
+        // Subscribe to local database changes using adapter
+        this.dbSubscription = collection.find$().subscribe({
+          next: (txns) => {
+            console.log(
+              '📊 Local database updated:',
+              txns.length,
+              'transactions',
+            );
+            // Convert to plain objects if needed (adapter should already return plain objects)
+            this._transactions.set(txns as any[]);
+          },
+          error: (error) => {
+            console.error('❌ Error in database subscription:', error);
+          },
+        });
       });
 
       // Subscribe to replication events if available
@@ -107,9 +114,11 @@ export class TransactionService implements OnDestroy {
    */
   async findAll() {
     try {
-      const txns = await this.databaseService.db.txn.find().exec();
-      this._transactions.set(txns);
-      return txns;
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txns = await collection.find();
+      this._transactions.set(txns as any[]);
+      return txns as any[];
     } catch (error) {
       console.error('❌ Error finding all transactions:', error);
       throw error;
@@ -121,10 +130,10 @@ export class TransactionService implements OnDestroy {
    */
   async findById(id: string) {
     try {
-      const txn = await this.databaseService.db.txn
-        .findOne({ selector: { id } } as any)
-        .exec();
-      return txn;
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txn = await collection.findOne(id);
+      return txn as any;
     } catch (error) {
       console.error('❌ Error finding transaction by id:', error);
       throw error;
@@ -136,10 +145,10 @@ export class TransactionService implements OnDestroy {
    */
   async findByStatus(status: string) {
     try {
-      const txns = await this.databaseService.db.txn
-        .find({ selector: { status } } as any)
-        .exec();
-      return txns;
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txns = await collection.find({ status } as any);
+      return txns as any[];
     } catch (error) {
       console.error('❌ Error finding transactions by status:', error);
       throw error;
@@ -151,8 +160,10 @@ export class TransactionService implements OnDestroy {
    */
   async create(transaction: any) {
     try {
-      const txn = await this.databaseService.db.txn.insert(transaction);
-      return txn;
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txn = await collection.insert(transaction);
+      return txn as any;
     } catch (error) {
       console.error('❌ Error creating transaction:', error);
       throw error;
@@ -164,15 +175,10 @@ export class TransactionService implements OnDestroy {
    */
   async update(id: string, updates: Partial<any>) {
     try {
-      const txn = await this.databaseService.db.txn
-        .findOne({ selector: { id } } as any)
-        .exec();
-
-      if (txn) {
-        await (txn as any).update(updates);
-        return txn;
-      }
-      throw new Error('Transaction not found');
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txn = await collection.update(id, updates);
+      return txn as any;
     } catch (error) {
       console.error('❌ Error updating transaction:', error);
       throw error;
@@ -184,15 +190,10 @@ export class TransactionService implements OnDestroy {
    */
   async delete(id: string) {
     try {
-      const txn = await this.databaseService.db.txn
-        .findOne({ selector: { id } } as any)
-        .exec();
-
-      if (txn) {
-        await (txn as any).remove();
-        return true;
-      }
-      throw new Error('Transaction not found');
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const deleted = await collection.delete(id, false); // Soft delete
+      return deleted;
     } catch (error) {
       console.error('❌ Error deleting transaction:', error);
       throw error;
@@ -204,15 +205,10 @@ export class TransactionService implements OnDestroy {
    */
   async forceDelete(id: string) {
     try {
-      const txn = await this.databaseService.db.txn
-        .findOne({ selector: { id } } as any)
-        .exec();
-
-      if (txn) {
-        await (txn as any).remove();
-        return true;
-      }
-      throw new Error('Transaction not found');
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const deleted = await collection.delete(id, true); // Hard delete
+      return deleted;
     } catch (error) {
       console.error('❌ Error force deleting transaction:', error);
       throw error;
@@ -234,10 +230,12 @@ export class TransactionService implements OnDestroy {
   async refreshTransactions() {
     try {
       console.log('🔄 Manually refreshing transactions...');
-      const txns = await this.databaseService.db.txn.find().exec();
-      this._transactions.set(txns);
+      const adapter = this.adapterProvider.getAdapter();
+      const collection = adapter.getCollection('txn');
+      const txns = await collection.find();
+      this._transactions.set(txns as any[]);
       console.log('✅ Manually refreshed transactions:', txns.length);
-      return txns;
+      return txns as any[];
     } catch (error) {
       console.error('❌ Error refreshing transactions:', error);
       throw error;
