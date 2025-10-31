@@ -53,6 +53,9 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
       return undefined;
     }
 
+    // Get clientId before replication setup (modifier needs synchronous access)
+    const clientId = await this.identity.getClientId();
+
     this.replicationState = replicateGraphQL<LogClientDocument, any>({
       collection: logClientCollection as any,
       replicationIdentifier:
@@ -97,8 +100,7 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
           };
         },
         modifier: (doc) => {
-          const clientId = this.identity.getClientId();
-
+          // Use the clientId from closure (already awaited above)
           if (doc.client_id === clientId) {
             return doc;
           } else {
@@ -147,20 +149,53 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
     });
 
     if (this.replicationState) {
-      this.replicationState.error$.subscribe((error) => {
-        console.error('LogClient Replication error:', error);
+      // Handle replication errors gracefully (server down, network errors, etc.)
+      this.replicationState.error$.subscribe((error: any) => {
+        // Log error but don't crash - offline-first approach
+        console.warn('⚠️ LogClient Replication error:', {
+          direction: error?.direction,
+          error: error?.error || error,
+          message: error?.error?.message || error?.message || 'Unknown error',
+        });
+        // RxDB will automatically retry when connection is restored
       });
-      this.replicationState.received$.subscribe(async (received) => {
-        console.log('cleanup log client');
-        await logClientCollection.cleanup(0);
 
-        console.log('LogClient Replication received:', received);
+      this.replicationState.received$.subscribe(async (received) => {
+        console.log('🧹 Cleaning up log client documents');
+        try {
+          await logClientCollection.cleanup(0);
+        } catch (cleanupError) {
+          console.warn('⚠️ Cleanup error (non-critical):', cleanupError);
+        }
+        console.log('✅ LogClient Replication received:', received);
       });
+
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('LogClient Replication sent:', sent);
+        console.log('📤 LogClient Replication sent:', sent);
       });
-      await this.replicationState.awaitInitialReplication();
-      console.log('Initial log-client replication completed');
+
+      // Wait for initial replication with timeout and error handling
+      try {
+        await Promise.race([
+          this.replicationState.awaitInitialReplication(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Initial replication timeout')),
+              10000,
+            ),
+          ),
+        ]);
+        console.log('✅ Initial log-client replication completed');
+      } catch (error: any) {
+        // Server might be down - app continues to work offline
+        console.warn(
+          '⚠️ Initial replication not completed (server may be down):',
+          error.message || error,
+        );
+        console.log(
+          '📝 App will continue working offline. Replication will retry automatically.',
+        );
+      }
     }
     return this.replicationState;
   }

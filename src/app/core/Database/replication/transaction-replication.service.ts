@@ -134,7 +134,7 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
             return {
               client_id,
               client_type,
-              doorId: client_type,
+              door_id: client_id,
             };
           },
 
@@ -196,36 +196,48 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     });
 
     if (this.replicationState) {
-      // transaction-replication.service.ts
+      // Handle replication errors gracefully (server down, network errors, etc.)
       this.replicationState.error$.subscribe(async (err: any) => {
-        // สนใจเฉพาะ push เท่านั้น และต้องมี pushRows แนบมา
-        if (!err || err.direction !== 'push' || !Array.isArray(err.pushRows))
-          return;
+        // Log error but don't crash - offline-first approach
+        console.warn('⚠️ Transaction Replication error:', err);
 
-        for (const row of err.pushRows) {
-          const rejected = row?.newDocumentState;
-          const id = rejected?.id;
-          if (!id) continue;
+        
 
-          const doc = await this.collection!.findOne(id).exec();
-          if (!doc) continue;
-
-          // ทางเลือก B (ถ้าต้องการให้หายไปจากคิว sync ทันที): soft-delete
-          await doc.remove();
-        }
+  
       });
 
       // เพิ่ม logging สำหรับ pull events
       this.replicationState.received$.subscribe((received) => {
-        console.log('Transaction Replication received:', received);
+        console.log('✅ Transaction Replication received:', received);
       });
 
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('Transaction Replication sent:', sent);
+        console.log('📤 Transaction Replication sent:', sent);
       });
 
-      await this.replicationState.awaitInitialReplication();
-      console.log('Initial transaction replication completed');
+      // Wait for initial replication with timeout and error handling
+      // This allows app to continue working even if server is down
+      try {
+        await Promise.race([
+          this.replicationState.awaitInitialReplication(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Initial replication timeout')),
+              10000,
+            ),
+          ),
+        ]);
+        console.log('✅ Initial transaction replication completed');
+      } catch (error: any) {
+        // Server might be down - app continues to work offline
+        console.warn(
+          '⚠️ Initial replication not completed (server may be down):',
+          error.message || error,
+        );
+        console.log(
+          '📝 App will continue working offline. Replication will retry automatically.',
+        );
+      }
     }
 
     return this.replicationState;

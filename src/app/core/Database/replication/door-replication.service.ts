@@ -139,7 +139,6 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
         modifier: (doc) => doc,
       },
 
-
       live: true,
       retryTime: 60000,
       autoStart: true,
@@ -147,20 +146,22 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
     });
 
     if (this.replicationState) {
+      // Handle replication errors gracefully (server down, network errors, etc.)
       this.replicationState.error$.subscribe((error) => {
-        console.error('Door Replication error:', error);
+        // Log error but don't crash - offline-first approach
+        console.warn('⚠️ Door Replication error:', error);
+        // RxDB will automatically retry when connection is restored
       });
 
       this.replicationState.received$.subscribe((received) => {
-        console.log('Door Replication received:', received);
+        console.log('✅ Door Replication received:', received);
       });
 
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('Door Replication sent:', sent);
+        console.log('📤 Door Replication sent:', sent);
       });
 
-      await this.replicationState.awaitInitialReplication();
-      console.log('Initial door replication completed');
+    
     }
 
     return this.replicationState;

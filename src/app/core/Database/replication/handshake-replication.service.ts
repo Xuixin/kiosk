@@ -141,20 +141,43 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
     });
 
     if (this.replicationState) {
+      // Handle replication errors gracefully (server down, network errors, etc.)
       this.replicationState.error$.subscribe((error) => {
-        console.error('Handshake Replication error:', error);
+        // Log error but don't crash - offline-first approach
+        console.warn('⚠️ Handshake Replication error:', error);
+        // RxDB will automatically retry when connection is restored
       });
 
       this.replicationState.received$.subscribe((received) => {
-        console.log('Handshake Replication received:', received);
+        console.log('✅ Handshake Replication received:', received);
       });
 
       this.replicationState.sent$.subscribe((sent) => {
-        console.log('Handshake Replication sent:', sent);
+        console.log('📤 Handshake Replication sent:', sent);
       });
 
-      await this.replicationState.awaitInitialReplication();
-      console.log('Initial handshake replication completed');
+      // Wait for initial replication with timeout and error handling
+      try {
+        await Promise.race([
+          this.replicationState.awaitInitialReplication(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error('Initial replication timeout')),
+              10000,
+            ),
+          ),
+        ]);
+        console.log('✅ Initial handshake replication completed');
+      } catch (error: any) {
+        // Server might be down - app continues to work offline
+        console.warn(
+          '⚠️ Initial replication not completed (server may be down):',
+          error.message || error,
+        );
+        console.log(
+          '📝 App will continue working offline. Replication will retry automatically.',
+        );
+      }
     }
 
     return this.replicationState;
