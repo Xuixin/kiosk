@@ -45,7 +45,6 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       replicationId: this.replicationIdentifier,
       batchSize: 5,
       pullQueryBuilder: (checkpoint: any, limit: number) => {
-        console.log('🔵 Pull Query - checkpoint:', checkpoint);
         return {
           query: PULL_TRANSACTION_QUERY,
           variables: {
@@ -58,7 +57,6 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
         };
       },
       streamQueryBuilder: (headers: any) => {
-        console.log('🔄 Stream Query - headers:', headers);
         return {
           query: STREAM_TRANSACTION_SUBSCRIPTION,
           variables: {},
@@ -136,14 +134,10 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
    */
   protected async setupReplicationDirectWithUrl(
     collection: RxCollection,
-    useFallback: boolean,
   ): Promise<RxGraphQLReplicationState<RxTxnDocumentType, any> | undefined> {
     const txnCollection = collection as unknown as RxTxnCollection;
 
-    const urlType = useFallback ? 'fallback' : 'primary';
-    console.log(
-      `Setting up Transaction GraphQL replication (direct mode - ${urlType} URL)...`,
-    );
+    console.log(`Setting up Transaction GraphQL replication (direct mode)...`);
 
     // Check if app is online before starting replication
     if (!this.networkStatus.isOnline()) {
@@ -154,25 +148,23 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       return undefined;
     }
 
-    // Use config with appropriate URL (fallback if needed)
-    // Always apply WebSocket monitoring regardless of primary or fallback URL
-    const baseConfig = useFallback
-      ? this.buildReplicationConfigWithFallback()
-      : (this.buildReplicationConfig() as any);
+    // Apply WebSocket monitoring
+    const baseConfig = this.buildReplicationConfig() as any;
     const config = this.applyWebSocketMonitoring(baseConfig);
-    // Ensure url property exists for RxDB replicateGraphQL
+
     const replicationOptions: any = {
       collection: txnCollection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
       url: config.url || { http: environment.apiUrl, ws: environment.wsUrl },
       ...config,
     };
+
     this.replicationState = replicateGraphQL<RxTxnDocumentType, any>(
       replicationOptions,
     );
 
     if (this.replicationState) {
-      // Setup error handler that will detect server crashes and switch to fallback
+      // Setup error handler
       this.setupReplicationErrorHandler(this.replicationState);
 
       // เพิ่ม logging สำหรับ pull events

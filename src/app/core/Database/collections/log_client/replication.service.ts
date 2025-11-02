@@ -58,13 +58,10 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
           },
         };
       },
-      // streamQueryBuilder not used for log_client (commented out)
       responseModifier: ReplicationConfigBuilder.createResponseModifier([
         'pullLogClients',
       ]),
       pullModifier: (doc) => {
-        // Filter documents by client_id - only show documents for this client
-        // clientId is stored in property and accessed via closure
         if (this.clientId && doc.client_id === this.clientId) {
           return doc;
         } else {
@@ -111,35 +108,18 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
    */
   protected async setupReplicationDirectWithUrl(
     collection: RxCollection,
-    useFallback: boolean,
   ): Promise<RxGraphQLReplicationState<LogClientDocument, any> | undefined> {
     const logClientCollection = collection as unknown as RxLogClientCollection;
 
-    const urlType = useFallback ? 'fallback' : 'primary';
-    console.log(
-      `Setting up LogClient GraphQL replication (direct mode - ${urlType} URL)...`,
-    );
-
     if (!this.networkStatus.isOnline()) {
-      console.log(
-        '⚠️ Application is offline - log-client replication setup skipped',
-      );
-      console.log(
-        '📝 Replication will start automatically when connection is restored',
-      );
       return undefined;
     }
 
-    // Get clientId before replication setup (modifier needs synchronous access)
     this.clientId = await this.identity.getClientId();
 
-    // Use config with appropriate URL (fallback if needed) - clientId accessed via closure
-    // Always apply WebSocket monitoring regardless of primary or fallback URL
-    const baseConfig = useFallback
-      ? this.buildReplicationConfigWithFallback()
-      : (this.buildReplicationConfig() as any);
+    const baseConfig = this.buildReplicationConfig() as any;
     const config = this.applyWebSocketMonitoring(baseConfig);
-    // Ensure url property exists for RxDB replicateGraphQL
+
     const replicationOptions: any = {
       collection: logClientCollection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
@@ -151,24 +131,16 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
     );
 
     if (this.replicationState) {
-      // Setup error handler that will detect server crashes and switch to fallback
       this.setupReplicationErrorHandler(this.replicationState);
 
       this.replicationState.received$.subscribe(async (received) => {
-        console.log('🧹 Cleaning up log client documents');
         try {
           await logClientCollection.cleanup(0);
         } catch (cleanupError) {
-          console.warn('⚠️ Cleanup error (non-critical):', cleanupError);
+          // Cleanup errors are non-critical, silently ignore
         }
-        console.log('✅ LogClient Replication received:', received);
       });
 
-      this.replicationState.sent$.subscribe((sent) => {
-        console.log('📤 LogClient Replication sent:', sent);
-      });
-
-      // Wait for initial replication with timeout and error handling
       try {
         await Promise.race([
           this.replicationState.awaitInitialReplication(),
@@ -179,16 +151,8 @@ export class LogClientReplicationService extends BaseReplicationService<LogClien
             ),
           ),
         ]);
-        console.log('✅ Initial log-client replication completed');
       } catch (error: any) {
-        // Server might be down - app continues to work offline
-        console.warn(
-          '⚠️ Initial replication not completed (server may be down):',
-          error.message || error,
-        );
-        console.log(
-          '📝 App will continue working offline. Replication will retry automatically.',
-        );
+        console.warn('Initial replication timeout:', error.message || error);
       }
     }
     return this.replicationState;

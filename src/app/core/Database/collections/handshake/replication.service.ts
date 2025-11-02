@@ -40,7 +40,6 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
       replicationId: this.replicationIdentifier,
       batchSize: 10,
       pullQueryBuilder: (checkpoint, limit) => {
-        console.log('🔵 Pull Query - checkpoint:', checkpoint);
         return {
           query: PULL_HANDSHAKE_QUERY,
           variables: {
@@ -53,7 +52,6 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
         };
       },
       streamQueryBuilder: (headers) => {
-        console.log('🔄 Stream Query - headers:', headers);
         return {
           query: STREAM_HANDSHAKE_SUBSCRIPTION,
           variables: {},
@@ -102,29 +100,14 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
    */
   protected async setupReplicationDirectWithUrl(
     collection: RxCollection,
-    useFallback: boolean,
   ): Promise<RxGraphQLReplicationState<HandshakeDocument, any> | undefined> {
-    const urlType = useFallback ? 'fallback' : 'primary';
-    console.log(
-      `Setting up Handshake GraphQL replication (direct mode - ${urlType} URL)...`,
-    );
-
-    // Check if app is online before starting replication
     if (!this.networkStatus.isOnline()) {
-      console.log('⚠️ Application is offline - replication setup skipped');
-      console.log(
-        '📝 Replication will start automatically when connection is restored',
-      );
       return undefined;
     }
 
-    // Use config with appropriate URL (fallback if needed)
-    // Always apply WebSocket monitoring regardless of primary or fallback URL
-    const baseConfig = useFallback
-      ? this.buildReplicationConfigWithFallback()
-      : (this.buildReplicationConfig() as any);
+    const baseConfig = this.buildReplicationConfig() as any;
     const config = this.applyWebSocketMonitoring(baseConfig);
-    // Ensure url property exists for RxDB replicateGraphQL
+
     const replicationOptions: any = {
       collection: collection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
@@ -136,18 +119,8 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
     );
 
     if (this.replicationState) {
-      // Setup error handler that will detect server crashes and switch to fallback
       this.setupReplicationErrorHandler(this.replicationState);
 
-      this.replicationState.received$.subscribe((received) => {
-        console.log('✅ Handshake Replication received:', received);
-      });
-
-      this.replicationState.sent$.subscribe((sent) => {
-        console.log('📤 Handshake Replication sent:', sent);
-      });
-
-      // Wait for initial replication with timeout and error handling
       try {
         await Promise.race([
           this.replicationState.awaitInitialReplication(),
@@ -158,16 +131,8 @@ export class HandshakeReplicationService extends BaseReplicationService<Handshak
             ),
           ),
         ]);
-        console.log('✅ Initial handshake replication completed');
       } catch (error: any) {
-        // Server might be down - app continues to work offline
-        console.warn(
-          '⚠️ Initial replication not completed (server may be down):',
-          error.message || error,
-        );
-        console.log(
-          '📝 App will continue working offline. Replication will retry automatically.',
-        );
+        console.warn('Initial replication timeout:', error.message || error);
       }
     }
 

@@ -12,8 +12,6 @@ export const environment = {
   production: true,
   apiUrl: 'http://localhost:10102/graphql',
   wsUrl: 'ws://localhost:10102/graphql',
-  apiUrlFallback: 'http://localhost:3001/graphql',
-  wsUrlFallback: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
   clientType: 'KIOSK',

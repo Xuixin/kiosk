@@ -40,7 +40,6 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
       replicationId: this.replicationIdentifier,
       batchSize: 10,
       pullQueryBuilder: (checkpoint, limit) => {
-        console.log('🔵 Pull Door Query - checkpoint:', checkpoint);
         return {
           query: PULL_DOOR_QUERY,
           variables: {
@@ -53,7 +52,6 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
         };
       },
       streamQueryBuilder: (headers) => {
-        console.log('🔄 Stream Door Query - headers:', headers);
         return {
           query: STREAM_DOOR_SUBSCRIPTION,
           variables: {},
@@ -109,29 +107,14 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
    */
   protected async setupReplicationDirectWithUrl(
     collection: RxCollection,
-    useFallback: boolean,
   ): Promise<RxGraphQLReplicationState<DoorDocument, any> | undefined> {
-    const urlType = useFallback ? 'fallback' : 'primary';
-    console.log(
-      `Setting up Door GraphQL replication (direct mode - ${urlType} URL)...`,
-    );
-
-    // Check if app is online before starting replication
     if (!this.networkStatus.isOnline()) {
-      console.log('⚠️ Application is offline - replication setup skipped');
-      console.log(
-        '📝 Replication will start automatically when connection is restored',
-      );
       return undefined;
     }
 
-    // Use config with appropriate URL (fallback if needed)
-    // Always apply WebSocket monitoring regardless of primary or fallback URL
-    const baseConfig = useFallback
-      ? this.buildReplicationConfigWithFallback()
-      : (this.buildReplicationConfig() as any);
+    const baseConfig = this.buildReplicationConfig() as any;
     const config = this.applyWebSocketMonitoring(baseConfig);
-    // Ensure url property exists for RxDB replicateGraphQL
+
     const replicationOptions: any = {
       collection: collection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
@@ -143,16 +126,7 @@ export class DoorReplicationService extends BaseReplicationService<DoorDocument>
     );
 
     if (this.replicationState) {
-      // Setup error handler that will detect server crashes and switch to fallback
       this.setupReplicationErrorHandler(this.replicationState);
-
-      this.replicationState.received$.subscribe((received) => {
-        console.log('✅ Door Replication received:', received);
-      });
-
-      this.replicationState.sent$.subscribe((sent) => {
-        console.log('📤 Door Replication sent:', sent);
-      });
     }
 
     return this.replicationState;

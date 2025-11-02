@@ -81,10 +81,6 @@ export class ReplicationMonitorComponent implements OnInit, OnDestroy {
     }
   }
 
-  getUrlTypeIcon(urlType: 'primary' | 'fallback'): string {
-    return urlType === 'primary' ? '🔵' : '🟣';
-  }
-
   formatDate(date?: Date): string {
     if (!date) return 'Never';
     const now = new Date();
