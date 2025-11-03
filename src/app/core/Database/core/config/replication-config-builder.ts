@@ -54,6 +54,8 @@ export interface ReplicationConfigOptions {
   waitForLeadership?: boolean;
   /** Additional headers */
   headers?: Record<string, string>;
+  /** Override URLs for failover (if provided, overrides httpUrl and wsUrl) */
+  urls?: { http: string; ws: string };
 }
 
 /**
@@ -80,8 +82,9 @@ export class ReplicationConfigBuilder {
 
     // Default values
     const batchSize = options.batchSize ?? 10;
-    const httpUrl = options.httpUrl || environment.apiUrl;
-    const wsUrl = options.wsUrl || environment.wsUrl;
+    // Use urls override if provided (for failover), otherwise use httpUrl/wsUrl or environment defaults
+    const httpUrl = options.urls?.http || options.httpUrl || environment.apiUrl;
+    const wsUrl = options.urls?.ws || options.wsUrl || environment.wsUrl;
     const live = options.live ?? true;
     const retryTime = options.retryTime ?? 60000;
     const autoStart = options.autoStart ?? true;

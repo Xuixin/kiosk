@@ -20,6 +20,7 @@ import {
 import { environment } from 'src/environments/environment';
 import { DeviceMonitoringHistoryFacade } from '../device-monitoring-history/facade.service';
 import { DeviceMonitoringFacade } from '../device-monitoring/facade.service';
+import { ReplicationFailoverService } from '../../core/services/replication-failover.service';
 
 /**
  * Transaction-specific GraphQL replication service
@@ -40,6 +41,7 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     private readonly identity: ClientIdentityService,
     private readonly deviceMonitoringHistoryFacade: DeviceMonitoringHistoryFacade,
     private readonly deviceMonitoringFacade: DeviceMonitoringFacade,
+    private readonly failoverService: ReplicationFailoverService,
   ) {
     super(networkStatus);
     this.collectionName = 'txn';
@@ -80,6 +82,14 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
           `lastStatus: ${lastEntry.status}`,
         );
       }
+
+      // Check if we're on secondary and primary is back, switch back to primary
+      if (this.failoverService.isOnSecondary()) {
+        console.log(
+          '🔄 [TxnReplication] Connected while on secondary, checking if primary is back...',
+        );
+        await this.failoverService.checkPrimaryAndSwitchBack();
+      }
     } catch (error) {
       console.error(
         'Error checking/appending primary server connected rev:',
@@ -94,10 +104,14 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
    * Uses ReplicationConfigBuilder to reduce code duplication
    */
   protected buildReplicationConfig(): ReplicationConfig & Record<string, any> {
+    // Use currentUrls if set (for failover), otherwise use environment defaults
+    const urls = this.currentUrls || undefined;
+
     const options: ReplicationConfigOptions = {
       collectionName: 'txn',
       replicationId: this.replicationIdentifier,
       batchSize: 5,
+      urls: urls, // Pass URLs for failover support
       pullQueryBuilder: (checkpoint: any, limit: number) => {
         return {
           query: PULL_TRANSACTION_QUERY,
@@ -151,6 +165,19 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
                 event.reason,
               );
               await this.deviceMonitoringFacade.handlePrimaryServerDown();
+
+              // Trigger failover to secondary server
+              console.log(
+                '🔄 [TxnReplication] Primary server down, triggering failover...',
+              );
+              try {
+                await this.failoverService.switchToSecondary();
+              } catch (failoverError) {
+                console.error(
+                  '❌ [TxnReplication] Failover error:',
+                  failoverError,
+                );
+              }
             }
           } else {
             this.wsRetryCount = 0;
@@ -267,10 +294,15 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     const baseConfig = this.buildReplicationConfig() as any;
     const config = this.applyWebSocketMonitoring(baseConfig);
 
+    // Use currentUrls if set (for failover), otherwise use config.url or environment defaults
+    const url = this.currentUrls
+      ? { http: this.currentUrls.http, ws: this.currentUrls.ws }
+      : config.url || { http: environment.apiUrl, ws: environment.wsUrl };
+
     const replicationOptions: any = {
       collection: txnCollection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
-      url: config.url || { http: environment.apiUrl, ws: environment.wsUrl },
+      url: url,
       ...config,
     };
 

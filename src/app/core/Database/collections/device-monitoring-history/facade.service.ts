@@ -236,4 +236,26 @@ export class DeviceMonitoringHistoryFacade extends BaseFacadeService<DeviceMonit
       console.error('Error appending primary server connect revision:', error);
     }
   }
+
+  async appendSecondaryServerOnlineRev(serverUrl: string) {
+    try {
+      await this.append({
+        device_id: environment.serverName + ' : secondary-server-online',
+        type: 'secondary-server-online',
+        status: 'SECONDARY_SERVER_ONLINE',
+        created_by: (await this.identity.getClientId()) || '',
+        client_created_at: Date.now().toString(),
+        meta_data: JSON.stringify({
+          serverUrl: serverUrl,
+          message: 'Switched to secondary server',
+        }),
+      });
+      console.log(
+        '✅ [DeviceMonitoringHistory] Secondary server online logged:',
+        serverUrl,
+      );
+    } catch (error) {
+      console.error('Error appending secondary server online revision:', error);
+    }
+  }
 }

@@ -17,6 +17,7 @@ export abstract class BaseReplicationService<T = any> {
   protected replicationIdentifier?: string;
   protected adapterProvider: AdapterProviderService;
   private _isRegistering = false;
+  protected currentUrls?: { http: string; ws: string };
 
   constructor(
     protected networkStatus: NetworkStatusService,
@@ -99,8 +100,17 @@ export abstract class BaseReplicationService<T = any> {
   /**
    * Build replication configuration for adapter
    * Override in subclasses to provide collection-specific config
+   * Should use this.currentUrls if set (for failover)
    */
   protected abstract buildReplicationConfig(): ReplicationConfig;
+
+  /**
+   * Set replication URLs (for failover)
+   */
+  setReplicationUrls(urls: { http: string; ws: string }): void {
+    console.log(`🔄 [BaseReplicationService] Setting replication URLs:`, urls);
+    this.currentUrls = urls;
+  }
 
   protected applyWebSocketMonitoring(
     config: ReplicationConfig & Record<string, any>,
@@ -150,6 +160,18 @@ export abstract class BaseReplicationService<T = any> {
     const config = this.buildReplicationConfig();
     config.replicationId = this.replicationIdentifier;
     config.collectionName = this.collectionName;
+
+    // Override URLs if set (for failover)
+    if (this.currentUrls) {
+      config.url = {
+        http: this.currentUrls.http,
+        ws: this.currentUrls.ws,
+      };
+      console.log(
+        `🔄 [BaseReplicationService] Using override URLs for ${collName}:`,
+        this.currentUrls,
+      );
+    }
 
     const monitoredConfig = this.applyWebSocketMonitoring(config as any);
 
@@ -357,7 +379,12 @@ export abstract class BaseReplicationService<T = any> {
   async register_replication(
     collection: RxCollection,
     identifier: string,
+    urls?: { http: string; ws: string },
   ): Promise<RxGraphQLReplicationState<T, any> | undefined> {
+    // Set URLs if provided (for failover)
+    if (urls) {
+      this.setReplicationUrls(urls);
+    }
     const isAlreadyRegistered =
       this.replicationIdentifier === identifier &&
       (this.replicationState || this.adapterReplicationState);

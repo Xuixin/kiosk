@@ -104,7 +104,11 @@ async function registerReplication(
  * Uses collection registry to map services to collection names
  */
 function setReplicationServices(configs: ReplicationServiceConfig[]) {
-  if (!GLOBAL_DB_SERVICE) return;
+  const dbService = GLOBAL_DB_SERVICE;
+  if (!dbService) {
+    console.error('❌ GLOBAL_DB_SERVICE is not initialized');
+    return;
+  }
 
   // Use registry to map collection names to setter methods
   configs.forEach((config) => {
@@ -114,16 +118,49 @@ function setReplicationServices(configs: ReplicationServiceConfig[]) {
       return;
     }
 
-    // Use dynamic method resolution based on service name from registry
-    const methodName =
-      `set${metadata.serviceName}ReplicationService` as keyof DatabaseService;
-    const method = GLOBAL_DB_SERVICE![methodName] as any;
+    // Map collection names to actual setter method names
+    // Handle special cases where method names don't match serviceName pattern
+    let methodName: keyof DatabaseService;
+    switch (config.collectionName) {
+      case 'txn':
+        methodName = 'setReplicationService';
+        break;
+      case 'device_monitoring':
+        methodName = 'setDeviceMonitoringReplicationService';
+        break;
+      case 'device_monitoring_history':
+        methodName = 'setDeviceMonitoringHistoryReplicationService';
+        break;
+      default:
+        // Fallback to dynamic method name based on service name
+        methodName =
+          `set${metadata.serviceName}ReplicationService` as keyof DatabaseService;
+    }
+
+    const method = dbService[methodName] as any;
     if (method && typeof method === 'function') {
-      method(config.service);
+      try {
+        method.call(dbService, config.service);
+      } catch (error) {
+        console.error(
+          `Error calling setter method ${String(methodName)} for collection ${config.collectionName}:`,
+          error,
+        );
+      }
     } else {
       console.warn(
-        `Setter method ${methodName} not found for collection ${config.collectionName}`,
+        `Setter method ${String(methodName)} not found for collection ${config.collectionName}`,
       );
+      // Fallback: use setReplicationServiceByCollection directly
+      if (
+        GLOBAL_DB_SERVICE &&
+        GLOBAL_DB_SERVICE.setReplicationServiceByCollection
+      ) {
+        GLOBAL_DB_SERVICE.setReplicationServiceByCollection(
+          config.collectionName,
+          config.service,
+        );
+      }
     }
   });
 }
@@ -451,6 +488,110 @@ export class DatabaseService {
 
     await Promise.all(stopPromises);
     console.log('All GraphQL replications stopped');
+  }
+
+  /**
+   * Restart all replications with new URLs (for failover)
+   */
+  async restartReplicationsWithUrls(urls: {
+    http: string;
+    ws: string;
+  }): Promise<void> {
+    console.log(
+      `🔄 [DatabaseService] Restarting replications with URLs:`,
+      urls,
+    );
+
+    // Get database instance
+    const dbInstance = this.db;
+    if (!dbInstance) {
+      throw new Error('Database not initialized');
+    }
+
+    // Get all replication services
+    const services = Array.from(this.replicationServices.entries());
+
+    // Re-register each replication service with new URLs
+    const restartPromises = services.map(async ([collectionName, service]) => {
+      try {
+        console.log(
+          `🔄 [DatabaseService] Restarting replication for ${collectionName}...`,
+        );
+
+        // Stop existing replication
+        if (service && typeof (service as any).stopReplication === 'function') {
+          await (service as any).stopReplication();
+        }
+
+        // Get collection
+        const metadata = CollectionRegistry.get(collectionName);
+        if (!metadata) {
+          console.warn(
+            `⚠️ [DatabaseService] Collection ${collectionName} not found in registry`,
+          );
+          return { collectionName, success: false };
+        }
+
+        const collection = dbInstance.collections[metadata.collectionKey];
+        if (!collection) {
+          console.warn(
+            `⚠️ [DatabaseService] Collection ${collectionName} not found in database`,
+          );
+          return { collectionName, success: false };
+        }
+
+        // Re-register with new URLs
+        // Each replication service should handle URL override in its buildReplicationConfig
+        // We need to pass URLs through a context or directly to the service
+        if (
+          service &&
+          typeof (service as any).setReplicationUrls === 'function'
+        ) {
+          // If service has method to set URLs, use it
+          (service as any).setReplicationUrls(urls);
+        }
+
+        // Register replication with new URLs
+        const replication = await (service as any).register_replication(
+          collection,
+          metadata.replicationId,
+          urls, // Pass URLs to registration
+        );
+
+        if (replication) {
+          console.log(
+            `✅ [DatabaseService] Replication restarted for ${collectionName}`,
+          );
+          return { collectionName, success: true };
+        } else {
+          console.warn(
+            `⚠️ [DatabaseService] Replication registration returned null for ${collectionName}`,
+          );
+          return { collectionName, success: false };
+        }
+      } catch (error) {
+        console.error(
+          `❌ [DatabaseService] Error restarting replication for ${collectionName}:`,
+          error,
+        );
+        return { collectionName, success: false };
+      }
+    });
+
+    const results = await Promise.all(restartPromises);
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
+
+    console.log(
+      `✅ [DatabaseService] Replication restart completed: ${successCount} succeeded, ${failCount} failed`,
+    );
+
+    if (failCount > 0) {
+      console.warn(
+        `⚠️ [DatabaseService] Some replications failed to restart:`,
+        results.filter((r) => !r.success).map((r) => r.collectionName),
+      );
+    }
   }
 
   /**
