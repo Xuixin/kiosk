@@ -15,7 +15,7 @@ import {
   SchemaDefinition,
   DatabaseInfo,
 } from '../../adapter';
-import { BaseDocument } from '../../base-schema';
+import { BaseDocument } from '../../base/base-schema';
 import { RxDBCollectionAdapter } from './rxdb-collection-adapter';
 import { RxDBReplicationAdapter } from './rxdb-replication-adapter';
 import { environment } from '../../../../../../environments/environment';
@@ -40,7 +40,20 @@ export class RxDBAdapter implements DBAdapter {
     });
   }
 
-  async initialize(schemas: SchemaDefinition[]): Promise<void> {
+  /**
+   * Generate database name from client ID and client type
+   * Format: CLIENTTYPE-last5chars (uppercase clientType + last 5 chars of clientId)
+   */
+  static generateDatabaseName(clientId: string, clientType: string): string {
+    const upperType = clientType.toUpperCase();
+    const lastChars = clientId.length > 5 ? clientId.slice(-5) : clientId;
+    return `${upperType}-${lastChars}`;
+  }
+
+  async initialize(
+    schemas: SchemaDefinition[],
+    databaseName?: string,
+  ): Promise<void> {
     if (this.isInitialized) {
       console.warn('RxDBAdapter already initialized');
       return;
@@ -49,7 +62,9 @@ export class RxDBAdapter implements DBAdapter {
     try {
       environment.addRxDBPlugins();
 
-      console.log('RxDBAdapter: creating database...');
+      // Use provided databaseName or fallback to environment default
+      const dbName = databaseName || environment.databaseName || 'kiosk_db';
+      console.log(`RxDBAdapter: creating database with name: ${dbName}`);
 
       const injector = this.injector;
       const reactivityFactory: RxReactivityFactory<Signal<any>> = {
@@ -70,7 +85,7 @@ export class RxDBAdapter implements DBAdapter {
       const rxdbSchemas = this.convertSchemasToRxDB(schemas);
 
       this.db = (await createRxDatabase<RxTxnsCollections>({
-        name: environment.databaseName || 'kiosk_db',
+        name: dbName,
         storage: environment.getRxStorage(),
         multiInstance: environment.multiInstance || false,
         reactivity: reactivityFactory,

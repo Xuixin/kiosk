@@ -1,4 +1,4 @@
-import { BaseDocument } from '../base-schema';
+import { BaseDocument } from '.';
 import { CollectionAdapter } from './collection-adapter.interface';
 import { ReplicationAdapter } from './replication-adapter.interface';
 import { SchemaDefinition, DatabaseInfo } from './query.types';
@@ -11,8 +11,9 @@ export interface DBAdapter {
   /**
    * Initialize the database with schemas
    * @param schemas - Array of schema definitions for collections
+   * @param databaseName - Optional database name (if not provided, uses default from environment)
    */
-  initialize(schemas: SchemaDefinition[]): Promise<void>;
+  initialize(schemas: SchemaDefinition[], databaseName?: string): Promise<void>;
 
   /**
    * Get a collection adapter for database operations

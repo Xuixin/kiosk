@@ -4,11 +4,11 @@ import { IonicModule } from '@ionic/angular';
 import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
-import { DoorDocument } from '../../../../core/Database/collections/door/schema';
-import { DoorFacade } from 'src/app/core/Database/collections/door';
+import { DeviceMonitoringDocument } from '../../../../core/Database/collections/device-monitoring/schema';
+import { DeviceMonitoringFacade } from 'src/app/core/Database/collections/device-monitoring';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-interface DoorWithSelection extends DoorDocument {
+interface DoorWithSelection extends DeviceMonitoringDocument {
   selected: boolean;
 }
 
@@ -22,19 +22,19 @@ interface DoorWithSelection extends DoorDocument {
 export class DoorPermissionComponent extends BaseFlowController {
   @Input() override data: Record<string, any> = {};
 
-  private doorFacade = inject(DoorFacade);
+  private deviceMonitoringFacade = inject(DeviceMonitoringFacade);
 
-  // Door data from API
+  // Door data from device-monitoring collection (type='DOOR')
   doorData = signal<DoorWithSelection[]>([]);
 
-  private doors$ = this.doorFacade.getDoors$();
+  private doors$ = this.deviceMonitoringFacade.getDoors$();
 
-  // Reactive doors from RxDB
+  // Reactive doors from RxDB (filtered by type='DOOR')
   doorsWithSelection = toSignal(this.doors$, { initialValue: [] });
 
   constructor() {
     super();
-    this.doorFacade.ensureInitialized();
+    this.deviceMonitoringFacade.ensureInitialized();
     // Sync doorData with RxDB stream, preserve current selections
     effect(() => {
       const incoming = this.doorsWithSelection();

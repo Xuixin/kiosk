@@ -7,18 +7,13 @@ import {
   TXN_SCHEMA_ADAPTER,
 } from '../../../collections/txn/schema';
 import {
-  HANDSHAKE_SCHEMA,
-  HANDSHAKE_SCHEMA_ADAPTER,
-} from '../../../collections/handshake/schema';
+  DEVICE_MONITORING_SCHEMA,
+  DEVICE_MONITORING_SCHEMA_ADAPTER,
+} from '../../../collections/device-monitoring/schema';
 import {
-  DOOR_SCHEMA,
-  DOOR_SCHEMA_ADAPTER,
-} from '../../../collections/door/schema';
-import {
-  LOG_CLIENT_SCHEMA,
-  LOG_CLIENT_SCHEMA_ADAPTER,
-} from '../../../collections/log_client/schema';
-import { LOG_SCHEMA, LOG_SCHEMA_ADAPTER } from '../../../schema/log-schema'; // TODO: Move log to collections if needed
+  DEVICE_MONITORING_HISTORY_SCHEMA,
+  DEVICE_MONITORING_HISTORY_SCHEMA_ADAPTER,
+} from '../../../collections/device-monitoring-history/schema';
 import { SchemaDefinition } from '../../adapter';
 import { RxTxnsCollections, RxTxnsDatabase } from '../../types/database.types';
 
@@ -31,10 +26,8 @@ export const DATABASE_NAME = 'kiosk_db';
 export function getAdapterSchemas(): SchemaDefinition[] {
   return [
     TXN_SCHEMA_ADAPTER,
-    HANDSHAKE_SCHEMA_ADAPTER,
-    DOOR_SCHEMA_ADAPTER,
-    LOG_CLIENT_SCHEMA_ADAPTER,
-    LOG_SCHEMA_ADAPTER, // TODO: Move log to collections if needed
+    DEVICE_MONITORING_SCHEMA_ADAPTER,
+    DEVICE_MONITORING_HISTORY_SCHEMA_ADAPTER,
   ];
 }
 
@@ -46,17 +39,11 @@ export const collectionsSettings = {
   txn: {
     schema: TXN_SCHEMA as any,
   },
-  handshake: {
-    schema: HANDSHAKE_SCHEMA as any,
+  device_monitoring: {
+    schema: DEVICE_MONITORING_SCHEMA as any,
   },
-  door: {
-    schema: DOOR_SCHEMA as any,
-  },
-  log_client: {
-    schema: LOG_CLIENT_SCHEMA as any,
-  },
-  log: {
-    schema: LOG_SCHEMA as any,
+  device_monitoring_history: {
+    schema: DEVICE_MONITORING_HISTORY_SCHEMA as any,
   },
 };
 
@@ -74,13 +61,17 @@ export function setupDebugRxDB(
     console.log('GLOBAL_DB_SERVICE:', globalDbService);
     if (dbInstance) {
       console.log('Collections:', Object.keys(dbInstance.collections));
-      console.log('Door collection:', dbInstance.door);
-      dbInstance.door
+      console.log('DeviceMonitoring collection:', dbInstance.device_monitoring);
+      dbInstance.device_monitoring
         .find()
         .exec()
         .then((docs: any[]) => {
-          console.log('Doors found:', docs.length);
-          docs.forEach((doc: any) => console.log('Door:', doc.toJSON()));
+          console.log('Device monitoring records found:', docs.length);
+          docs
+            .filter((doc: any) => doc.type === 'DOOR')
+            .forEach((doc: any) =>
+              console.log('Door (DOOR type):', doc.toJSON()),
+            );
         });
     }
   };
@@ -130,7 +121,6 @@ export async function _createRxDBDatabase(
       document.title = '♛ ' + document.title;
     });
   }
-
 
   await db.addCollections(collectionsSettings);
 

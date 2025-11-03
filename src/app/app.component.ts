@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { DatabaseService } from './core/Database/database.service';
+import { DatabaseService } from './core/Database/core/services/database.service';
 
 import 'zone.js/plugins/zone-patch-rxjs';
 @Component({

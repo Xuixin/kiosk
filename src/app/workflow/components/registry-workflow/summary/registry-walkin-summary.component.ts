@@ -16,7 +16,7 @@ import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
 import { RegistryService } from '../../../services/registry.service';
-import { DoorFacade } from 'src/app/core/Database/collections/door';
+import { DeviceMonitoringFacade } from 'src/app/core/Database/collections/device-monitoring';
 import { ModalsControllerService } from 'src/app/flow-services/modals-controller.service';
 import { ReceiptService } from './offline-receipt/receipt.service';
 import { DoorOfflineReceiptModal } from './offline-receipt/door-offline-receipt.modal';
@@ -69,7 +69,7 @@ export class RegistryWalkinSummaryComponent
 
   // Services
   private registryService = inject(RegistryService);
-  private doorFacade = inject(DoorFacade);
+  private deviceMonitoringFacade = inject(DeviceMonitoringFacade);
   private modals = inject(ModalsControllerService);
   private receiptService = inject(ReceiptService);
 
@@ -320,7 +320,9 @@ export class RegistryWalkinSummaryComponent
 
     // Check if any selected door is offline and show receipt modal first
     try {
-      const allDoors = await firstValueFrom(this.doorFacade.getDoors$());
+      const allDoors = await firstValueFrom(
+        this.deviceMonitoringFacade.getDoors$(),
+      );
       const receiptData = this.receiptService.build(ctx, allDoors, cid);
       if (receiptData.offlineDoors.length > 0) {
         await this.modals.openModal({

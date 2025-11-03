@@ -13,7 +13,7 @@ import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
-import { DatabaseService } from '../core/Database/database.service';
+import { DatabaseService } from '../core/Database/core/services/database.service';
 
 @Component({
   selector: 'app-home',
@@ -44,7 +44,14 @@ export class HomePage implements OnInit, OnDestroy {
     }, 60000);
   }
 
-  ngOnInit() {}
+  async ngOnInit() {
+    // Load initial transaction data
+    try {
+      await this.transactionService.findAll();
+    } catch (error) {
+      console.error('❌ Error loading transactions on HomePage init:', error);
+    }
+  }
 
   ngOnDestroy() {
     if (this.timeInterval) {

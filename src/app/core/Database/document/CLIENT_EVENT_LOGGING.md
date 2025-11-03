@@ -1,70 +1,98 @@
-# Client Event Logging (Local RxDB)
+# Client Event Logging (Device Monitoring History)
 
-Status: implemented (network-only, deduped)
+Status: ✅ Implemented (network-only, deduped)
 
 ## Purpose
 
-Record client connectivity events to analyze offline incidents and repeated disconnections per device. Works on Web and App (Capacitor).
+Record client connectivity events to analyze offline incidents and repeated disconnections per device. Works on Web and Mobile (Capacitor).
 
 ## Scope (v1)
 
-- Event source: Capacitor Network.addListener('networkStatusChange')
-- Stored fields: ONLINE/OFFLINE only (status + meta = same value)
+- Event source: `NetworkStatusService.isOnline$` (reactive Observable)
+- Stored fields: ONLINE/OFFLINE status with metadata
 - Dedupe: write only if latest stored status for the client differs
+- Platform support: Web (navigator.onLine) and Mobile (Capacitor Network plugin)
 
 ## Data Model
 
-Collection: log_client
+Collection: `device_monitoring_history`
 
 Fields:
 
-- id: string (uuid)
-- client_id: string (device unique id)
-- type: 'KIOSK' | 'DOOR' (default KIOSK)
-- status: string ('ONLINE' | 'OFFLINE')
-- meta_data: string ('ONLINE' | 'OFFLINE')
-- server_created_at: string | '' (placeholder)
-- client_created_at: string (Date.now().toString())
-- diff_time_create: number | '' (placeholder)
+- `id`: string (uuid)
+- `device_id`: string (device unique id, from ClientIdentityService)
+- `type`: string ('KIOSK' | 'DOOR')
+- `status`: string ('ONLINE' | 'OFFLINE')
+- `meta_data`: string (event description, e.g., 'NETWORK_EVENT: {clientId} => {status}')
+- `created_by`: string (device unique id, from ClientIdentityService.getClientId())
+- `server_created_at`: string | '' (server timestamp)
+- `client_created_at`: string (Date.now().toString())
+- `client_updated_at`: string (Date.now().toString())
+- `cloud_created_at`: string | ''
+- `cloud_updated_at`: string | ''
+- `server_updated_at`: string | ''
+- `diff_time_create`: string
+- `diff_time_update`: string
 
-Indexes: client_created_at, client_id, status
+Indexes: `client_created_at`, `created_by`, `status`, `type`
 
-Schema file: src/app/core/schema/log-client.schema.ts
+Note: `deleted` field is handled by RxDB's `_deleted` flag
 
 ## Architecture
 
-- RxDB registration: src/app/core/Database/rxdb.service.ts (key log_client)
-- Types: src/app/core/Database/RxDB.D.ts (RxLogClientCollection)
-- Facade: src/app/core/Database/facade/log-client.service.ts
-  - append(...)
-  - getLastByClient(clientId)
-  - getLogs$()
-  - countOfflineEvents$(clientId?)
-- Runtime: src/app/core/monitoring/client-event-logging.service.ts
-  - On networkStatusChange:
-    1. Resolve clientId (localStorage UUID placeholder)
-    2. status = ONLINE/OFFLINE
-    3. Fetch latest; if same status → skip; else insert (meta_data = status)
-- Bootstrap: src/app/app.module.ts
-  - APP_INITIALIZER awaits DB init, then starts logging service
+- Collection: `src/app/core/Database/collections/device-monitoring-history/`
+  - Schema: `schema.ts`
+  - Types: `types.ts`
+  - Facade: `facade.service.ts`
+    - `append(...)`
+    - `getLastByCreatedBy(createdBy)`
+    - `getHistory$()`
+    - `countOfflineEvents$(createdBy?)`
+    - `getHistoryByCreatedBy(createdBy)`
+    - `getHistoryByType(type)`
+  - Replication: `replication.service.ts` (GraphQL replication)
+- Runtime: `src/app/core/monitoring/client-event-logging.service.ts`
+  - Subscribes to `NetworkStatusService.isOnline$`
+  - On network status change:
+    1. Resolve `createdBy` from `ClientIdentityService.getClientId()`
+    2. Check if status changed (skip duplicates)
+    3. Insert new history entry with `device_id` and `created_by`
+- Bootstrap: `src/app/app.module.ts`
+  - `APP_INITIALIZER` awaits DB init, then starts logging service
 
 ## Device Identity
 
-- Current: localStorage("kiosk_device_id") with UUID fallback
-- Future: Capacitor Device ID or configured door/kiosk id
+- Current: `ClientIdentityService.getClientId()` returns device unique ID
+- Type: `ClientIdentityService.getClientType()` returns 'KIOSK' or 'DOOR'
 
 ## Usage Examples
 
 - Count offline events:
 
 ```ts
-logClientFacade.countOfflineEvents$(clientId).subscribe((count) => {});
+historyFacade.countOfflineEvents$(createdBy).subscribe((count) => {
+  console.log(`Offline events: ${count}`);
+});
 ```
 
-- Stream logs:
+- Stream all history:
 
 ```ts
-logClientFacade.getLogs$().subscribe((entries) => {});
+historyFacade.getHistory$().subscribe((entries) => {
+  console.log("History entries:", entries);
+});
+```
+
+- Get history by creator:
+
+```ts
+const history = await historyFacade.getHistoryByCreatedBy(createdBy);
+```
+
+- Get history by type:
+
+```ts
+const doorHistory = await historyFacade.getHistoryByType("DOOR");
 ```
 
 ## Testing
@@ -73,9 +101,18 @@ logClientFacade.getLogs$().subscribe((entries) => {});
   - First change after load inserts
   - Same status again is skipped
 - Reload with unchanged network: no duplicate
+- Network status changes are automatically tracked
 
-## Future
+## Platform Support
 
-- Server sync; compute server_created_at, diff_time_create
-- Optional lifecycle events (opened/closed)
-- Analytics (durations, MTBF) per client
+- **Web**: Uses browser `navigator.onLine` and `online/offline` events
+- **Mobile (iOS/Android)**: Uses Capacitor Network plugin
+- Both handled automatically by `NetworkStatusService`
+
+## Future Enhancements
+
+- Server sync (already implemented via GraphQL replication)
+- Optional lifecycle events (app opened/closed)
+- Analytics (durations, MTBF) per device
+- Filter by date range
+- Export history for debugging

@@ -1,10 +1,14 @@
 // Core base classes
-export * from './base-facade.service';
-export * from './base-replication.service';
-export * from './replication-config-builder';
+export * from './base/base-facade.service';
+export * from './base/base-replication.service';
 
-// Registry
-export * from './collection-registry';
+// Configuration
+export * from './config/replication-config-builder';
+export * from './config/collection-registry';
+
+// Services
+export * from './services/database.service';
+export * from './services/network-status.service';
 
 // Adapters
 export * from './adapter';
@@ -30,7 +34,7 @@ export type { RxTxnsCollections, RxTxnsDatabase } from './types/database.types';
 export {
   BaseQueryBuilder,
   type QueryBuilderConfig,
-} from './types/base-query-builder';
+} from './utils/base-query-builder';
 
 // Schema utilities
 export {
@@ -38,5 +42,5 @@ export {
   type SchemaConfig,
   createSchema,
   type ExtractDocumentType,
-} from './base-schema';
-export * from './schema-converter';
+} from './base/base-schema';
+export * from './utils/schema-converter';

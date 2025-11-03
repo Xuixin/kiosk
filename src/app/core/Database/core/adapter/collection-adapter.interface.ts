@@ -1,4 +1,4 @@
-import { BaseDocument } from '../base-schema';
+import { BaseDocument } from '.';
 import { Observable } from 'rxjs';
 import { QuerySelector, QueryRequest, QueryResult } from './query.types';
 

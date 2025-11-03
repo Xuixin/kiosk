@@ -4,20 +4,22 @@ import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
 import { RxCollection } from 'rxdb';
 import { RxTxnCollection } from './types';
 import { RxTxnDocumentType } from './schema';
-import { NetworkStatusService } from '../../network-status.service';
+import { NetworkStatusService } from '../../core/services/network-status.service';
 import { ClientIdentityService } from '../../../identity/client-identity.service';
-import { BaseReplicationService } from '../../core/base-replication.service';
+import { BaseReplicationService } from '../../core/base/base-replication.service';
 import { ReplicationConfig } from '../../core/adapter';
 import {
   ReplicationConfigBuilder,
   ReplicationConfigOptions,
-} from '../../core/replication-config-builder';
+} from '../../core/config/replication-config-builder';
 import {
   PUSH_TRANSACTION_MUTATION,
   PULL_TRANSACTION_QUERY,
   STREAM_TRANSACTION_SUBSCRIPTION,
 } from './query-builder';
 import { environment } from 'src/environments/environment';
+import { DeviceMonitoringHistoryFacade } from '../device-monitoring-history/facade.service';
+import { DeviceMonitoringFacade } from '../device-monitoring/facade.service';
 
 /**
  * Transaction-specific GraphQL replication service
@@ -27,12 +29,64 @@ import { environment } from 'src/environments/environment';
   providedIn: 'root',
 })
 export class TransactionReplicationService extends BaseReplicationService<RxTxnDocumentType> {
+  private wsRetryCount = 0;
+  private isConnected = false;
+  private lastConnectedTime = 0;
+  private readonly CONNECTION_DEBOUNCE_MS = 5000; // 5 seconds debounce
+  private connectionProcessingPromise: Promise<void> | null = null;
+
   constructor(
     networkStatus: NetworkStatusService,
     private readonly identity: ClientIdentityService,
+    private readonly deviceMonitoringHistoryFacade: DeviceMonitoringHistoryFacade,
+    private readonly deviceMonitoringFacade: DeviceMonitoringFacade,
   ) {
     super(networkStatus);
     this.collectionName = 'txn';
+  }
+
+  /**
+   * Handle connected event (separate method to prevent concurrent processing)
+   */
+  private async handleConnected(event: any, timestamp: number): Promise<void> {
+    // Mark as connected and update timestamp
+    this.isConnected = true;
+    this.lastConnectedTime = timestamp;
+
+    // Reset retry count on successful connection
+    this.wsRetryCount = 0;
+
+    try {
+      // Check last entry with type='primary-server-connect' to avoid duplicates
+      const lastEntry = await this.deviceMonitoringHistoryFacade.getLastByType(
+        'primary-server-connect',
+      );
+
+      // Only append if last entry is not already 'PRIMARY_SERVER_CONNECT'
+      // or if there's no previous entry
+      if (!lastEntry || lastEntry.status !== 'PRIMARY_SERVER_CONNECT') {
+        await this.deviceMonitoringHistoryFacade.appendPrimaryServerConnectedRev();
+        console.log(
+          'WebSocket connected (status changed):',
+          event,
+          `retryCount: ${this.wsRetryCount}`,
+          `lastStatus: ${lastEntry?.status || 'none'}`,
+        );
+      } else {
+        console.log(
+          'WebSocket connected (already connected, skipping append):',
+          event,
+          `retryCount: ${this.wsRetryCount}`,
+          `lastStatus: ${lastEntry.status}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Error checking/appending primary server connected rev:',
+        error,
+      );
+      // Don't mark as disconnected on error - connection is still valid
+    }
   }
 
   /**
@@ -80,6 +134,67 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
               ? doc.door_permission.split(',').map((s: any) => s.trim())
               : doc.door_permission,
         };
+      },
+      wsOnEvents: {
+        closed: async (event: any) => {
+          // Mark as disconnected when closed
+          this.isConnected = false;
+
+          const eventCode = event.code;
+          // Increment retry count only for abnormal closures (1006)
+          if (eventCode === 1006) {
+            this.wsRetryCount++;
+            // Only log to monitoring after 5 consecutive failures
+            if (this.wsRetryCount >= 6) {
+              await this.deviceMonitoringHistoryFacade.appendPrimaryServerDownRev(
+                event.code,
+                event.reason,
+              );
+              await this.deviceMonitoringFacade.handlePrimaryServerDown();
+            }
+          } else {
+            this.wsRetryCount = 0;
+          }
+          console.log(
+            'WebSocket closed:',
+            event,
+            `retryCount: ${this.wsRetryCount}`,
+          );
+        },
+        connected: async (event: any) => {
+          const now = Date.now();
+
+          // Debounce: Only process if not already connected or if enough time has passed
+          if (
+            this.isConnected &&
+            now - this.lastConnectedTime < this.CONNECTION_DEBOUNCE_MS
+          ) {
+            console.log(
+              'WebSocket connected (debounced, already connected recently):',
+              event,
+              `retryCount: ${this.wsRetryCount}`,
+            );
+            return;
+          }
+
+          // If already processing a connection, wait for it to complete
+          if (this.connectionProcessingPromise) {
+            console.log(
+              'WebSocket connected (already processing, waiting):',
+              event,
+            );
+            await this.connectionProcessingPromise;
+            return;
+          }
+
+          // Process connection (prevent concurrent processing)
+          this.connectionProcessingPromise = this.handleConnected(event, now);
+          try {
+            await this.connectionProcessingPromise;
+          } finally {
+            this.connectionProcessingPromise = null;
+          }
+        },
       },
       wsConnectionParams: async () => {
         const client_id = await this.identity.getClientId();
@@ -158,6 +273,11 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       url: config.url || { http: environment.apiUrl, ws: environment.wsUrl },
       ...config,
     };
+
+    // Reset connection state when setting up new replication
+    this.isConnected = false;
+    this.lastConnectedTime = 0;
+    this.connectionProcessingPromise = null;
 
     this.replicationState = replicateGraphQL<RxTxnDocumentType, any>(
       replicationOptions,

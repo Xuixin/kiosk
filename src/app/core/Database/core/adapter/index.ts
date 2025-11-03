@@ -29,4 +29,4 @@ export {
 } from './replication-adapter.interface';
 
 // Re-export BaseDocument for convenience
-export { BaseDocument } from '../base-schema';
+export { BaseDocument } from '../base';

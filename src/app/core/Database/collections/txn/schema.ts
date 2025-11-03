@@ -4,7 +4,7 @@ import {
   ExtractDocumentTypeFromTypedRxJsonSchema,
 } from 'rxdb';
 import { SchemaDefinition } from '../../core/adapter';
-import { convertRxDBSchemaToAdapter } from '../../core/schema-converter';
+import { convertRxDBSchemaToAdapter } from '../../core/utils/schema-converter';
 
 export const TXN_SCHEMA_LITERAL = {
   title: 'Txn',

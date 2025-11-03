@@ -6,6 +6,8 @@ import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { addRxPlugin } from 'rxdb';
 import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
 import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder';
+import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
+
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
 
@@ -13,14 +15,18 @@ export const environment = {
   production: false,
   apiUrl: 'http://localhost:10102/graphql',
   wsUrl: 'ws://localhost:10102/graphql',
+  apiSecondaryUrl: 'http://localhost:3001/graphql',
+  wsSecondaryUrl: 'ws://localhost:3001/graphql',
   databaseName: 'kiosk_prod',
   multiInstance: false,
   clientType: 'KIOSK',
   adapterType: 'rxdb' as const, // Database adapter type: 'rxdb' | 'pouchdb' | 'watermelon' | 'server'
 
+  serverName: 'server-มอ',
   addRxDBPlugins() {
     addRxPlugin(RxDBCleanupPlugin);
     addRxPlugin(RxDBQueryBuilderPlugin);
+    addRxPlugin(RxDBUpdatePlugin);
   },
   getRxStorage() {
     // Check if running on native platform

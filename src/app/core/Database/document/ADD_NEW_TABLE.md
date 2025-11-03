@@ -539,9 +539,8 @@ src/app/core/Database/
 │       └── database.types.ts      # เพิ่ม type ที่นี่
 ├── collections/                   # Table-based organization
 │   ├── txn/
-│   ├── door/
-│   ├── handshake/
-│   ├── log_client/
+│   ├── device-monitoring/
+│   ├── device-monitoring-history/
 │   └── product/                    # ใหม่!
 │       ├── schema.ts
 │       ├── types.ts

@@ -13,11 +13,8 @@ export * from './utils';
 
 // Re-export collection types from new locations (for backward compatibility)
 // export * from '../../../collections/txn/types';
-// export * from '../../../collections/handshake/types';
-// export * from '../../../collections/door/types';
-// export * from '../../../collections/log_client/types';
-// Log collection still in old location (TODO: Move to collections/log/)
-export * from './collections/log.types';
+// export * from '../../../collections/device-monitoring/types';
+// export * from '../../../collections/device-monitoring-history/types';
 
 // Export database types from core/types
 
@@ -25,6 +22,5 @@ export * from './collections/log.types';
 
 // Re-export query builders from new locations (for backward compatibility)
 // export * from '../../../collections/txn/query-builder';
-// export * from '../../../collections/handshake/query-builder';
-// export * from '../../../collections/door/query-builder';
-// export * from '../../../collections/log_client/query-builder';
+// export * from '../../../collections/device-monitoring/query-builder';
+// export * from '../../../collections/device-monitoring-history/query-builder';

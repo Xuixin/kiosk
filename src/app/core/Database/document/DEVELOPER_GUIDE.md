@@ -29,7 +29,7 @@ Database Module ใช้ **Adapter Pattern** เพื่อให้ระบ�
                    │
 ┌──────────────────▼──────────────────────────────┐
 │         Facade Services Layer                   │
-│  (TransactionService, DoorFacade, etc.)         │
+│  (TransactionService, DeviceMonitoringFacade, etc.) │
 │  Extends: BaseFacadeService                     │
 └──────────────────┬──────────────────────────────┘
                    │
@@ -106,12 +106,12 @@ Collection Registry เป็น **Single Source of Truth** สำหรับ c
 
 ### Location
 
-`src/app/core/Database/config/collection-registry.ts`
+`src/app/core/Database/core/collection-registry.ts`
 
 ### Usage
 
 ```typescript
-import { CollectionRegistry, COLLECTION_NAMES } from "../config/collection-registry";
+import { CollectionRegistry, COLLECTION_NAMES } from "../core/collection-registry";
 
 // Get metadata
 const metadata = CollectionRegistry.get("txn");

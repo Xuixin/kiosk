@@ -3,10 +3,11 @@ import {
   NgModule,
   APP_INITIALIZER,
   CUSTOM_ELEMENTS_SCHEMA,
+  ErrorHandler,
 } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { RouteReuseStrategy } from '@angular/router';
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 
 import { IonicModule } from '@ionic/angular';
 import {
@@ -24,12 +25,15 @@ import { providePrimeNG } from 'primeng/config';
 import {
   initDatabase,
   DatabaseService,
-} from './core/Database/database.service';
+} from './core/Database/core/services/database.service';
 import { AdapterProviderService } from './core/Database/core/factory';
 import { WorkflowPreloadService } from './flow-services/workflow-preload.service';
 import Aura from '@primeng/themes/aura';
 import { CommonModule } from '@angular/common';
 import { ClientEventLoggingService } from './core/monitoring/client-event-logging.service';
+import { GlobalErrorHandlerService } from './core/error-handling/error-handler.service';
+import { OfflineHttpInterceptor } from './core/interceptors/offline-http.interceptor';
+import { OfflineBannerComponent } from './components/offline-banner/offline-banner.component';
 
 @NgModule({
   declarations: [AppComponent],
@@ -38,6 +42,7 @@ import { ClientEventLoggingService } from './core/monitoring/client-event-loggin
     IonicModule.forRoot(),
     AppRoutingModule,
     HttpClientModule,
+    OfflineBannerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   providers: [
@@ -81,6 +86,17 @@ import { ClientEventLoggingService } from './core/monitoring/client-event-loggin
     },
     DatabaseService,
     WorkflowPreloadService,
+    // * global error handler
+    {
+      provide: ErrorHandler,
+      useClass: GlobalErrorHandlerService,
+    },
+    // * HTTP interceptors
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: OfflineHttpInterceptor,
+      multi: true,
+    },
     // * animations
     provideAnimationsAsync(),
     MessageService,

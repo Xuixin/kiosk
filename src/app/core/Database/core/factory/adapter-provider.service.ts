@@ -21,11 +21,13 @@ export class AdapterProviderService {
    * Initialize the adapter with schemas
    * @param schemas - Schema definitions for collections
    * @param config - Optional adapter configuration (defaults to rxdb)
+   * @param databaseName - Optional database name (if not provided, uses default from environment)
    * @returns Promise that resolves when initialization is complete
    */
   async initialize(
     schemas: SchemaDefinition[],
     config?: AdapterConfig,
+    databaseName?: string,
   ): Promise<void> {
     if (this.isInitialized()) {
       console.warn('Adapter already initialized');
@@ -36,13 +38,18 @@ export class AdapterProviderService {
       return this.initializationPromise;
     }
 
-    this.initializationPromise = this._initialize(schemas, config);
+    this.initializationPromise = this._initialize(
+      schemas,
+      config,
+      databaseName,
+    );
     await this.initializationPromise;
   }
 
   private async _initialize(
     schemas: SchemaDefinition[],
     config?: AdapterConfig,
+    databaseName?: string,
   ): Promise<void> {
     try {
       const adapterConfig = config || AdapterFactory.getDefaultConfig();
@@ -54,7 +61,7 @@ export class AdapterProviderService {
 
       this.adapter = await AdapterFactory.create(adapterConfig, this.injector);
 
-      await this.adapter.initialize(schemas);
+      await this.adapter.initialize(schemas, databaseName);
 
       this.isInitialized.set(true);
       console.log('AdapterProviderService: Initialization complete');

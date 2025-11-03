@@ -6,69 +6,70 @@ This directory contains the database abstraction layer that enables database-agn
 
 The database layer uses an **adapter pattern** to abstract database operations from specific implementations, allowing the application to work with different database backends (RxDB, PouchDB, WatermelonDB, etc.) through a unified interface.
 
-### Directory Structure (Table-Based Organization)
+### Directory Structure (Organized by Function)
 
 ```
 Database/
-├── core/                      # Shared/base classes and utilities
-│   ├── base-facade.service.ts         # Base class for facade services
-│   ├── base-replication.service.ts    # Base class for replication services
-│   ├── replication-config-builder.ts # Replication config builder utility
-│   ├── collection-registry.ts         # Central collection registry
-│   ├── base-schema.ts                 # Base schema utilities
-│   ├── schema-converter.ts            # Schema converter utilities
-│   ├── adapter/                       # Core adapter interfaces
+├── collections/                      # Table-based organization
+│   ├── txn/                         # Transaction collection
+│   │   ├── schema.ts
+│   │   ├── types.ts
+│   │   ├── facade.service.ts
+│   │   ├── replication.service.ts
+│   │   ├── query-builder.ts
+│   │   └── index.ts
+│   ├── device-monitoring/            # Device monitoring collection
+│   │   └── ... (same structure)
+│   └── device-monitoring-history/    # Device monitoring history collection
+│       └── ... (same structure)
+│
+├── core/
+│   ├── services/                    # Root-level services (public API)
+│   │   ├── database.service.ts      # Main DatabaseService
+│   │   └── network-status.service.ts # Network status monitoring
+│   │
+│   ├── base/                        # Base classes for inheritance
+│   │   ├── base-facade.service.ts
+│   │   ├── base-replication.service.ts
+│   │   └── base-schema.ts
+│   │
+│   ├── config/                      # Configuration & Registry
+│   │   ├── collection-registry.ts   # Central collection registry
+│   │   └── replication-config-builder.ts
+│   │
+│   ├── adapter/                     # Adapter interfaces (database-agnostic)
 │   │   ├── db-adapter.interface.ts
 │   │   ├── collection-adapter.interface.ts
 │   │   ├── replication-adapter.interface.ts
 │   │   └── query.types.ts
-│   ├── adapters/                      # Concrete adapter implementations
-│   │   └── rxdb/                      # RxDB adapter
+│   │
+│   ├── adapters/                    # Concrete adapter implementations
+│   │   └── rxdb/                    # RxDB adapter
 │   │       ├── rxdb-adapter.ts
 │   │       ├── rxdb-collection-adapter.ts
 │   │       ├── rxdb-replication-adapter.ts
-│   │       └── rxdb-helpers.ts
-│   ├── factory/                       # Adapter factory and provider
+│   │       ├── rxdb-helpers.ts
+│   │       └── types/
+│   │
+│   ├── factory/                     # Factory pattern
 │   │   ├── adapter-factory.ts
 │   │   └── adapter-provider.service.ts
-│   └── types/                         # Shared types
-│       ├── database.types.ts          # Main database type (RxTxnsDatabase)
-│       ├── utils.ts                   # Type utility helpers
-│       └── base-query-builder.ts      # Base query builder
+│   │
+│   ├── types/                       # Shared TypeScript types
+│   │   ├── database.types.ts
+│   │   └── utils.ts
+│   │
+│   ├── utils/                       # Utility functions
+│   │   ├── schema-converter.ts
+│   │   └── base-query-builder.ts
+│   │
+│   └── index.ts                     # Public API barrel exports
 │
-├── collections/               # Table-based organization (NEW!)
-│   ├── txn/                   # Transaction collection
-│   │   ├── schema.ts
-│   │   ├── types.ts
-│   │   ├── facade.service.ts
-│   │   ├── replication.service.ts
-│   │   ├── query-builder.ts
-│   │   └── index.ts
-│   ├── door/                   # Door collection
-│   │   ├── schema.ts
-│   │   ├── types.ts
-│   │   ├── facade.service.ts
-│   │   ├── replication.service.ts
-│   │   ├── query-builder.ts
-│   │   └── index.ts
-│   ├── handshake/             # Handshake collection
-│   │   └── ... (same structure)
-│   └── log_client/            # Log client collection
-│       └── ... (same structure)
-│
-├── schema/                    # Legacy schemas (only log collection)
-│   └── log-schema.ts          # TODO: Move to collections/log/
-│
-├── document/                   # Documentation
-│   ├── ADD_NEW_TABLE.md        # Guide for adding new collections
-│   ├── DEVELOPER_GUIDE.md
-│   └── ...
-│
-├── templates/                  # Code templates
-│   └── collection.template.ts  # Template for new collections
-│
-├── database.service.ts         # Main DatabaseService
-└── network-status.service.ts   # Network status monitoring
+└── document/                        # Documentation
+    ├── ADD_NEW_TABLE.md
+    ├── DEVELOPER_GUIDE.md
+    ├── FILE_ORGANIZATION.md         # File organization guide
+    └── ...
 ```
 
 ## Key Benefits of New Structure
@@ -137,11 +138,12 @@ export class AdapterProviderService {
 
 - **BaseFacadeService**: Base class for facade services with automatic subscription management
 - **BaseReplicationService**: Base class for replication services with network handling
+- **BaseSchema**: Base schema utilities and type helpers
+
+### 5. Configuration
+
+- **CollectionRegistry**: Central registry for all collections (Single Source of Truth)
 - **ReplicationConfigBuilder**: Utility to build replication configurations
-
-### 5. Collection Registry
-
-Central registry for all collections:
 
 ```typescript
 export class CollectionRegistry {
@@ -151,13 +153,18 @@ export class CollectionRegistry {
 }
 ```
 
+### 6. Services
+
+- **DatabaseService**: Main database service for managing database instance and replication
+- **NetworkStatusService**: Network status monitoring (supports Web and Mobile)
+
 ## Adding a New Collection
 
 See the detailed guide: [ADD_NEW_TABLE.md](./document/ADD_NEW_TABLE.md)
 
 **Quick Steps:**
 
-1. Register in `core/collection-registry.ts`
+1. Register in `core/config/collection-registry.ts`
 2. Create folder: `collections/{table-name}/`
 3. Create files: `schema.ts`, `types.ts`, `facade.service.ts`, `replication.service.ts`, `query-builder.ts`, `index.ts`
 4. Update `core/types/database.types.ts`
@@ -179,6 +186,24 @@ export class MyComponent {
 
     // Or use async methods
     const allTxns = await this.transactionService.findAll();
+  }
+}
+```
+
+### Using Database Service
+
+```typescript
+import { DatabaseService } from "./core/Database/core/services/database.service";
+
+export class MyService {
+  private dbService = inject(DatabaseService);
+
+  async getData() {
+    const db = this.dbService.db;
+    if (!db) {
+      throw new Error("Database not initialized");
+    }
+    return await db.txn.find().exec();
   }
 }
 ```
@@ -232,15 +257,32 @@ All files for a collection are now in one folder!
 
 - **[ADD_NEW_TABLE.md](./document/ADD_NEW_TABLE.md)**: Complete guide for adding new collections
 - **[DEVELOPER_GUIDE.md](./document/DEVELOPER_GUIDE.md)**: General developer guide
-- **[Collection Template](./templates/collection.template.ts)**: Code template for new collections
+- **[FILE_ORGANIZATION.md](./document/FILE_ORGANIZATION.md)**: File organization and structure guide
+- **[MIGRATION.md](./document/MIGRATION.md)**: Migration guide from direct RxDB usage to adapter pattern
+
+## File Organization
+
+The Database folder is organized into logical groups for better maintainability:
+
+- **collections/**: Table-based collections (self-contained)
+- **core/services/**: Root-level services (public API)
+- **core/base/**: Base classes for inheritance
+- **core/config/**: Configuration and registry
+- **core/adapter/**: Adapter interfaces
+- **core/adapters/**: Adapter implementations
+- **core/factory/**: Factory pattern
+- **core/types/**: Shared TypeScript types
+- **core/utils/**: Utility functions
+
+See **[FILE_ORGANIZATION.md](./document/FILE_ORGANIZATION.md)** for detailed explanation of each group.
 
 ## Related Files
 
-- `database.service.ts`: Main service for database operations
-- `network-status.service.ts`: Network status monitoring for offline-first operations
-- `core/collection-registry.ts`: Central collection registry
+- `core/services/database.service.ts`: Main service for database operations
+- `core/services/network-status.service.ts`: Network status monitoring for offline-first operations
+- `core/config/collection-registry.ts`: Central collection registry
 
 ---
 
 **Last Updated**: 2025-01-XX
-**Version**: 3.0 (Table-Based Organization)
+**Version**: 4.0 (Organized Structure)

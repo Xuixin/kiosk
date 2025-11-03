@@ -1,10 +1,6 @@
 import { Injectable } from '@angular/core';
-import { DatabaseService } from 'src/app/core/Database/database.service';
-import { HandshakeDocument } from 'src/app/core/Database/collections/handshake/schema';
+import { DatabaseService } from 'src/app/core/Database/core/services/database.service';
 import { RxTxnDocumentType } from 'src/app/core/Database/collections/txn/schema';
-import { HandshakeService } from 'src/app/core/Database/collections/handshake';
-import { UUIDUtils } from 'src/app/utils/uuid.utils';
-import { environment } from 'src/environments/environment';
 
 export interface RegistryTransaction {
   id: string;
@@ -27,16 +23,21 @@ export interface SubmitResult {
   providedIn: 'root',
 })
 export class RegistryService {
-  constructor(
-    private readonly dbService: DatabaseService,
-    private readonly handshakeService: HandshakeService,
-  ) {}
+  constructor(private readonly dbService: DatabaseService) {}
 
   async submitRegistration(
     registry: RegistryTransaction,
   ): Promise<SubmitResult> {
     try {
-      await this.dbService.db.txn.insert({
+      const db = this.dbService.db;
+      if (!db) {
+        return {
+          success: false,
+          error: 'Database not initialized. Please wait and try again.',
+        };
+      }
+
+      await db.txn.insert({
         id: registry.id,
         name: registry.name,
         id_card_base64: registry.id_card_base64,
@@ -46,19 +47,6 @@ export class RegistryService {
         status: registry.status,
         client_created_at: registry.client_created_at,
       } as unknown as RxTxnDocumentType);
-
-      const hs_id = UUIDUtils.generatePrefixedId('hs', '-');
-
-      await this.handshakeService.createHandshake({
-        id: hs_id,
-        transaction_id: registry.id,
-        handshake: '',
-        events: JSON.stringify({
-          type: 'CREATE',
-          at: Date.now().toString(),
-          actor: (environment as any).clientType,
-        }),
-      } as unknown as HandshakeDocument);
 
       return {
         success: true,

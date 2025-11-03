@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DoorDocument } from 'src/app/core/Database/collections/door/schema';
+import { DeviceMonitoringDocument } from 'src/app/core/Database/collections/device-monitoring/schema';
 
 export interface ReceiptViewModel {
   ticketId: string;
@@ -11,7 +11,11 @@ export interface ReceiptViewModel {
 
 @Injectable({ providedIn: 'root' })
 export class ReceiptService {
-  build(ctx: any, doors: DoorDocument[], ticketId: string): ReceiptViewModel {
+  build(
+    ctx: any,
+    doors: DeviceMonitoringDocument[],
+    ticketId: string,
+  ): ReceiptViewModel {
     const selectedIds: string[] = Array.isArray(ctx?.door_permission)
       ? ctx.door_permission
       : typeof ctx?.door_permission === 'string'

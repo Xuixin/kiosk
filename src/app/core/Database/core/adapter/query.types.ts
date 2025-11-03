@@ -1,5 +1,5 @@
-import { BaseDocument } from '../base-schema';
-import { Observable } from 'rxjs';
+import { BaseDocument } from ".";
+
 
 /**
  * Query selector type (simplified MongoDB-style)

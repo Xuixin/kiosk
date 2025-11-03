@@ -12,8 +12,6 @@ import { TagModule } from 'primeng/tag';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 import { InputTextModule } from 'primeng/inputtext';
 
-// Replication Monitor Component
-import { ReplicationMonitorComponent } from '../core/Database/components/replication-monitor.component';
 
 @NgModule({
   imports: [
@@ -26,7 +24,7 @@ import { ReplicationMonitorComponent } from '../core/Database/components/replica
     ToggleButtonModule,
     InputTextModule,
   ],
-  declarations: [HomePage, ReplicationMonitorComponent],
+  declarations: [HomePage],
   providers: [],
 })
 export class HomePageModule {}

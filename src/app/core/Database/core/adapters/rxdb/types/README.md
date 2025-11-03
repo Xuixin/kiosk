@@ -9,19 +9,11 @@ types/
 ├── utils.ts                    # Utility type helpers
 ├── database.types.ts           # Main database types (collections union)
 ├── index.ts                    # Exports all types
-├── collections/                # One file per collection
-│   ├── txn.types.ts
-│   ├── handshake.types.ts
-│   ├── door.types.ts
-│   ├── log.types.ts
-│   └── log-client.types.ts
 └── query-builder/              # GraphQL query builders (organized with types)
     ├── base-query-builder.ts
-    ├── txn-query-builder.ts
-    ├── door-query-builder.ts
-    ├── handshake-query-builder.ts
-    ├── log-client-builder.ts
     └── index.ts
+
+Note: Collection types are now organized in table-based structure under `collections/{table-name}/types.ts`
 ```
 
 ## Adding a New Collection
@@ -103,11 +95,9 @@ Query builders for GraphQL replication are organized in the `query-builder/` fol
 ```
 query-builder/
 ├── base-query-builder.ts       # Base class for query builders
-├── txn-query-builder.ts        # Transaction queries
-├── door-query-builder.ts       # Door queries
-├── handshake-query-builder.ts  # Handshake queries
-├── log-client-builder.ts       # Log client queries
-└── index.ts                    # Exports all query builders
+└── index.ts                    # Exports query builders
+
+Note: Collection-specific query builders are now in `collections/{table-name}/query-builder.ts`
 ```
 
 ### Usage

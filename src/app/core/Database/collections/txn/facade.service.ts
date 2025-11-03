@@ -1,7 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { TransactionReplicationService } from './replication.service';
-import { BaseFacadeService } from '../../core/base-facade.service';
-import { COLLECTION_NAMES } from '../../core/collection-registry';
+import { BaseFacadeService } from '../../core/base/base-facade.service';
+import { COLLECTION_NAMES } from '../../core/config/collection-registry';
 
 export interface TransactionStats {
   total: number;
@@ -60,6 +60,11 @@ export class TransactionService extends BaseFacadeService<any> {
       return;
     }
 
+    // Load initial data immediately
+    this.findAll().catch((error) => {
+      console.error('❌ Error loading initial transactions:', error);
+    });
+
     // Subscribe to local database changes using adapter
     const dbSubscription = collection.find$().subscribe({
       next: (txns) => {
@@ -95,11 +100,19 @@ export class TransactionService extends BaseFacadeService<any> {
   async findAll() {
     const collection = this.collection;
     if (!collection) {
-      throw new Error('Transaction collection not available');
+      console.warn(
+        '⚠️ Transaction collection not available, returning empty array',
+      );
+      return [];
     }
-    const txns = await collection.find();
-    this._transactions.set(txns as any[]);
-    return txns as any[];
+    try {
+      const txns = await collection.find();
+      this._transactions.set(txns as any[]);
+      return txns as any[];
+    } catch (error) {
+      console.error('❌ Error finding transactions:', error);
+      return [];
+    }
   }
 
   /**
@@ -108,10 +121,16 @@ export class TransactionService extends BaseFacadeService<any> {
   async findById(id: string) {
     const collection = this.collection;
     if (!collection) {
-      throw new Error('Transaction collection not available');
+      console.warn('⚠️ Transaction collection not available');
+      return null;
     }
-    const txn = await collection.findOne(id);
-    return txn as any;
+    try {
+      const txn = await collection.findOne(id);
+      return txn as any;
+    } catch (error) {
+      console.error('❌ Error finding transaction by ID:', error);
+      return null;
+    }
   }
 
   /**
@@ -120,10 +139,16 @@ export class TransactionService extends BaseFacadeService<any> {
   async findByStatus(status: string) {
     const collection = this.collection;
     if (!collection) {
-      throw new Error('Transaction collection not available');
+      console.warn('⚠️ Transaction collection not available');
+      return [];
     }
-    const txns = await collection.find({ status } as any);
-    return txns as any[];
+    try {
+      const txns = await collection.find({ status } as any);
+      return txns as any[];
+    } catch (error) {
+      console.error('❌ Error finding transactions by status:', error);
+      return [];
+    }
   }
 
   /**

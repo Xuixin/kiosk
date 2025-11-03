@@ -7,7 +7,7 @@ import {
   QueryRequest,
   QueryResult,
 } from '../../adapter';
-import { BaseDocument } from '../../base-schema';
+import { BaseDocument } from '../../base/base-schema';
 
 /**
  * RxDB implementation of CollectionAdapter

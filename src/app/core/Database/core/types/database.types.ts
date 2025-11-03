@@ -1,10 +1,7 @@
 import { CreateRxDatabase } from './utils';
 import { RxTxnCollection } from '../../collections/txn/types';
-import { RxHandshakeCollection } from '../../collections/handshake/types';
-import { RxDoorCollection } from '../../collections/door/types';
-import { RxLogClientCollection } from '../../collections/log_client/types';
-// Note: log collection types are still in old location (TODO: Move to collections/log/)
-import { RxLogCollection } from '../adapters/rxdb/types/collections/log.types';
+import { RxDeviceMonitoringCollection } from '../../collections/device-monitoring/types';
+import { RxDeviceMonitoringHistoryCollection } from '../../collections/device-monitoring-history/types';
 
 /**
  * All collections in the database
@@ -16,10 +13,8 @@ import { RxLogCollection } from '../adapters/rxdb/types/collections/log.types';
  */
 export interface RxTxnsCollections {
   txn: RxTxnCollection;
-  handshake: RxHandshakeCollection;
-  door: RxDoorCollection;
-  log: RxLogCollection;
-  log_client: RxLogClientCollection;
+  device_monitoring: RxDeviceMonitoringCollection;
+  device_monitoring_history: RxDeviceMonitoringHistoryCollection;
   [key: string]: any; // Index signature for compatibility
 }
 

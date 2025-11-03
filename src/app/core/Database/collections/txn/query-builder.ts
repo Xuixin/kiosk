@@ -1,6 +1,6 @@
 // GraphQL Mutation สำหรับ Push Transaction
 export const PUSH_TRANSACTION_MUTATION = `
-  mutation PushTransaction($writeRows: [Transaction2InputPushRow!]!) {
+  mutation PushTransaction($writeRows: [TransactionInputPushRow!]!) {
     pushTransaction(input: $writeRows) {
       client_created_at
       client_updated_at
@@ -19,7 +19,7 @@ export const PUSH_TRANSACTION_MUTATION = `
 
 // GraphQL Query สำหรับ Pull Transaction
 export const PULL_TRANSACTION_QUERY = `
-  query PullTransaction($input: Transaction2Pull!) {
+  query PullTransaction($input: TransactionPull!) {
     pullTransaction(input: $input) {
       documents {
         id
