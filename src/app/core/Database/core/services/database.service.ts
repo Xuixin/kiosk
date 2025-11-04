@@ -6,7 +6,6 @@ import { DeviceMonitoringHistoryReplicationService } from '../../collections/dev
 import { NetworkStatusService } from './network-status.service';
 import { ClientIdentityService } from '../../../identity/client-identity.service';
 import { AdapterProviderService } from '../factory';
-import { ReplicationFailoverService } from './replication-failover.service';
 import {
   RxDBAdapter,
   getAdapterSchemas,
@@ -18,57 +17,6 @@ import { CollectionRegistry } from '../config/collection-registry';
 let GLOBAL_DB_SERVICE: DatabaseService | undefined;
 let initState: null | Promise<any> = null;
 let DB_INSTANCE: RxTxnsDatabase;
-
-/**
- * Initialize failover state restoration
- * Restores server state from localStorage and starts replications with correct URLs
- */
-async function initializeFailoverState(
-  failoverService: ReplicationFailoverService,
-): Promise<void> {
-  console.log('🔄 [Failover] Checking for persisted failover state...');
-
-  // Get current server state (already loaded from localStorage in constructor)
-  const currentServer = failoverService.currentServer();
-  const isFailoverActive = failoverService.isFailoverActive();
-
-  if (isFailoverActive && currentServer === 'secondary') {
-    console.log(
-      '🔄 [Failover] Detected persisted secondary server state, restoring...',
-    );
-
-    // Get database service instance
-    const databaseService = GLOBAL_DB_SERVICE;
-    if (!databaseService) {
-      console.warn(
-        '⚠️ [Failover] Database service not available for state restoration',
-      );
-      return;
-    }
-
-    // Get secondary URLs and restart replications
-    const secondaryUrls = failoverService.getSecondaryUrls();
-    console.log('📡 [Failover] Restoring secondary URLs:', secondaryUrls);
-
-    try {
-      await databaseService.restartReplicationsWithUrls(secondaryUrls);
-      console.log(
-        '✅ [Failover] Successfully restored secondary server replications',
-      );
-    } catch (error) {
-      console.error(
-        '❌ [Failover] Failed to restore secondary server replications:',
-        error,
-      );
-      // Reset to primary on failure
-      failoverService.getCurrentUrls(); // This will reset to primary URLs
-    }
-  } else if (currentServer === 'primary') {
-    console.log(
-      'ℹ️ [Failover] Primary server state detected, no restoration needed',
-    );
-  }
-}
 
 /**
  * Replication service configuration
@@ -266,7 +214,6 @@ export async function initDatabase(injector: Injector): Promise<void> {
       const adapterProvider = injector.get(
         AdapterProviderService,
       ) as AdapterProviderService;
-      const failoverService = injector.get(ReplicationFailoverService);
 
       // Check if client ID exists, if not show device selection modal
       let clientId = await identityService.getClientId();
@@ -413,17 +360,6 @@ export async function initDatabase(injector: Injector): Promise<void> {
         } catch (error) {
           console.error('❌ Error setting up replication services:', error);
           // Don't throw - replication can retry later
-        }
-
-        // Initialize failover state restoration
-        try {
-          console.log(
-            '🔄 [Database] Initializing failover state restoration...',
-          );
-          await initializeFailoverState(failoverService);
-        } catch (error) {
-          console.error('❌ Error initializing failover state:', error);
-          // Don't throw - failover can work without state restoration
         }
       });
     } catch (error) {
