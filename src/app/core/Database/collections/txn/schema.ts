@@ -28,6 +28,8 @@ export const TXN_SCHEMA_LITERAL = {
     client_updated_at: { type: 'string', maxLength: 20 },
     server_created_at: { type: 'string', maxLength: 20 },
     server_updated_at: { type: 'string', maxLength: 20 },
+    cloud_created_at: { type: 'string', maxLength: 20 },
+    cloud_updated_at: { type: 'string', maxLength: 20 },
     diff_time_create: { type: 'string', maxLength: 20 },
     diff_time_update: { type: 'string', maxLength: 20 },
   },

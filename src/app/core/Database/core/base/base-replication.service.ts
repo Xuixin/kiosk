@@ -121,7 +121,9 @@ export abstract class BaseReplicationService<T = any> {
     if (config.pull) {
       const pullConfig = config.pull as any;
       if (!pullConfig.wsOptions) {
-        pullConfig.wsOptions = {};
+        pullConfig.wsOptions = {
+          
+        };
       }
 
       if (!pullConfig.wsOptions.keepAlive) {

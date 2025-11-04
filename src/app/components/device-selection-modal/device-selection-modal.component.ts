@@ -56,6 +56,8 @@ export class DeviceSelectionModalComponent implements OnInit {
       const clientType = this.identityService.getClientType();
       console.log(`🔍 Loading devices for type: ${clientType}`);
 
+
+
       const devices = await this.deviceApiService.listDevicesByType(clientType);
 
       if (devices.length === 0) {

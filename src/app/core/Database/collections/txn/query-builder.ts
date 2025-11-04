@@ -45,8 +45,8 @@ export const PULL_TRANSACTION_QUERY = `
 
 // GraphQL Subscription สำหรับ Stream Transaction (Real-time)
 export const STREAM_TRANSACTION_SUBSCRIPTION = `
-  subscription StreamTransaction2 {
-    streamTransaction2 {
+  subscription StreamTransaction {
+    streamTransaction {
       documents {
         id
         name

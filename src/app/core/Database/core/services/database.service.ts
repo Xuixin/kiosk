@@ -492,6 +492,7 @@ export class DatabaseService {
 
   /**
    * Restart all replications with new URLs (for failover)
+   * Ensures all replications are stopped before starting new ones
    */
   async restartReplicationsWithUrls(urls: {
     http: string;
@@ -511,7 +512,36 @@ export class DatabaseService {
     // Get all replication services
     const services = Array.from(this.replicationServices.entries());
 
-    // Re-register each replication service with new URLs
+    // Step 1: Stop ALL replications first
+    console.log('🛑 [DatabaseService] Stopping all replications...');
+    const stopPromises = services.map(async ([collectionName, service]) => {
+      try {
+        if (service && typeof (service as any).stopReplication === 'function') {
+          console.log(`🛑 [DatabaseService] Stopping ${collectionName}...`);
+          await (service as any).stopReplication();
+          console.log(`✅ [DatabaseService] Stopped ${collectionName}`);
+          return { collectionName, stopped: true };
+        }
+        return { collectionName, stopped: false };
+      } catch (error) {
+        console.warn(
+          `⚠️ [DatabaseService] Error stopping ${collectionName}:`,
+          error,
+        );
+        return { collectionName, stopped: false, error };
+      }
+    });
+
+    const stopResults = await Promise.all(stopPromises);
+    console.log(
+      '🛑 [DatabaseService] All replications stop results:',
+      stopResults,
+    );
+
+    // Step 2: Start ALL replications with new URLs
+    console.log(
+      '🚀 [DatabaseService] Starting all replications with new URLs...',
+    );
     const restartPromises = services.map(async ([collectionName, service]) => {
       try {
         console.log(
@@ -583,6 +613,11 @@ export class DatabaseService {
     const failCount = results.filter((r) => !r.success).length;
 
     console.log(
+      `🚀 [DatabaseService] All replications start results:`,
+      results,
+    );
+
+    console.log(
       `✅ [DatabaseService] Replication restart completed: ${successCount} succeeded, ${failCount} failed`,
     );
 
@@ -591,7 +626,12 @@ export class DatabaseService {
         `⚠️ [DatabaseService] Some replications failed to restart:`,
         results.filter((r) => !r.success).map((r) => r.collectionName),
       );
+      throw new Error(`Failed to restart ${failCount} replications`);
     }
+
+    console.log(
+      '🎉 [DatabaseService] All replications successfully restarted with new URLs',
+    );
   }
 
   /**

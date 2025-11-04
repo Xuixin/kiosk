@@ -132,7 +132,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
    * Filters by type='DOOR' and excludes deleted documents
    */
   getDeviceMonitoringByType$(
-    type: string,
+    type: string | string[],
   ): Observable<DeviceMonitoringDocument[]> {
     const collection = this.collection;
     if (!collection) {
@@ -143,7 +143,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
     return collection
       .find$({
         selector: {
-          type: type,
+          type: Array.isArray(type) ? { $in: type } : type,
         },
       } as any)
       .pipe(map((docs) => docs.filter((doc) => !(doc as any)._deleted)));
@@ -224,7 +224,8 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
    * Get doors as observable (for reactive UI)
    */
   getDoors$(): Observable<DeviceMonitoringDocument[]> {
-    return this.getDeviceMonitoringByType$('DOOR');
+    const doorType = ['DOOR', 'door'];
+    return this.getDeviceMonitoringByType$(doorType);
   }
 
   /**

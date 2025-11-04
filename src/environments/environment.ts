@@ -8,7 +8,6 @@ import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
 import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder';
 import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
 
-
 const sqlite = new SQLiteConnection(CapacitorSQLite);
 
 export const environment = {
@@ -23,6 +22,7 @@ export const environment = {
   adapterType: 'rxdb' as const, // Database adapter type: 'rxdb' | 'pouchdb' | 'watermelon' | 'server'
 
   serverName: 'server-มอ',
+  serverId: 'server-111',
   addRxDBPlugins() {
     addRxPlugin(RxDBCleanupPlugin);
     addRxPlugin(RxDBQueryBuilderPlugin);

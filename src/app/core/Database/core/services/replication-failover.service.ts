@@ -1,7 +1,4 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
-import { Observable, interval, from, EMPTY } from 'rxjs';
-import { switchMap, catchError, map } from 'rxjs/operators';
-import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { DatabaseService } from './database.service';
 import { DeviceMonitoringHistoryFacade } from '../../collections/device-monitoring-history/facade.service';
@@ -10,8 +7,17 @@ export type ServerType = 'primary' | 'secondary';
 
 /**
  * Replication Failover Service
- * Manages automatic failover from primary to secondary server
- * and switches back when primary is restored
+ * Manages automatic failover from primary to secondary server with dynamic checkpoint switching
+ *
+ * Features:
+ * - Primary (10102): Uses server_updated_at checkpoint
+ * - Secondary (3001): Uses cloud_updated_at checkpoint
+ * - Automatic checkpoint field detection based on server URL
+ * - Device monitoring status-based primary recovery detection
+ *
+ * Recovery mechanism:
+ * - Transaction replication monitors device-monitoring status when connected to 3001
+ * - When serverId='111' status becomes 'online', automatically switches back to primary
  */
 @Injectable({
   providedIn: 'root',
@@ -21,7 +27,6 @@ export class ReplicationFailoverService {
   private readonly deviceMonitoringHistoryFacade = inject(
     DeviceMonitoringHistoryFacade,
   );
-  private readonly http = inject(HttpClient);
 
   // Reactive state using Angular Signals
   private readonly _currentServer = signal<ServerType>('primary');
@@ -39,10 +44,6 @@ export class ReplicationFailoverService {
   public readonly isOnSecondary = computed(
     () => this._currentServer() === 'secondary',
   );
-
-  private monitoringInterval?: any;
-  private readonly PRIMARY_HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
-  private readonly PRIMARY_HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds
 
   /**
    * Get current server URLs based on active server
@@ -112,6 +113,7 @@ export class ReplicationFailoverService {
 
   /**
    * Switch to secondary server
+   * Updated to use new checkpoint switching system
    */
   async switchToSecondary(): Promise<void> {
     if (this._isSwitching()) {
@@ -128,17 +130,16 @@ export class ReplicationFailoverService {
       this._isSwitching.set(true);
       console.log('🔄 [Failover] Starting failover to secondary server...');
 
-      // Step 1: Stop all replications
       await this.stopAllReplications();
 
-      // Step 2: Get secondary URLs
       const secondaryUrls = this.getSecondaryUrls();
       console.log('📡 [Failover] Secondary URLs:', secondaryUrls);
+      console.log(
+        '🔄 [Failover] Will use cloud_updated_at checkpoint for secondary server',
+      );
 
-      // Step 3: Restart replications with secondary URLs
       await this.databaseService.restartReplicationsWithUrls(secondaryUrls);
 
-      // Step 4: Update state
       this._currentServer.set('secondary');
       this._isFailoverActive.set(true);
       console.log('✅ [Failover] Switched to secondary server');
@@ -151,7 +152,9 @@ export class ReplicationFailoverService {
         secondaryUrls.http,
       );
 
-      console.log('✅ [Failover] Failover to secondary completed');
+      console.log(
+        '✅ [Failover] Failover to secondary completed with checkpoint switching',
+      );
     } catch (error) {
       console.error('❌ [Failover] Error switching to secondary:', error);
       throw error;
@@ -162,6 +165,7 @@ export class ReplicationFailoverService {
 
   /**
    * Switch back to primary server
+   * Updated to use new checkpoint switching system
    */
   async switchToPrimary(): Promise<void> {
     if (this._isSwitching()) {
@@ -178,14 +182,22 @@ export class ReplicationFailoverService {
       this._isSwitching.set(true);
       console.log('🔄 [Failover] Switching back to primary server...');
 
-      // Step 1: Stop all replications
+      // Step 1: Stop all replications from current server
+      console.log(
+        '🛑 [Failover] Stopping all replications from current server...',
+      );
       await this.stopAllReplications();
+      console.log('✅ [Failover] All replications stopped');
 
       // Step 2: Get primary URLs
       const primaryUrls = this.getPrimaryUrls();
       console.log('📡 [Failover] Primary URLs:', primaryUrls);
+      console.log(
+        '🔄 [Failover] Will use server_updated_at checkpoint for primary server',
+      );
 
       // Step 3: Restart replications with primary URLs
+      // The new checkpoint system will automatically use server_updated_at for :10102
       await this.databaseService.restartReplicationsWithUrls(primaryUrls);
 
       // Step 4: Update state
@@ -193,124 +205,17 @@ export class ReplicationFailoverService {
       this._isFailoverActive.set(false);
       console.log('✅ [Failover] Switched back to primary server');
 
-      console.log('✅ [Failover] Switch to primary completed');
+      // Step 5: Log to device monitoring history
+      await this.deviceMonitoringHistoryFacade.appendPrimaryServerConnectedRev();
+
+      console.log(
+        '✅ [Failover] Switch to primary completed with checkpoint switching',
+      );
     } catch (error) {
       console.error('❌ [Failover] Error switching to primary:', error);
       throw error;
     } finally {
       this._isSwitching.set(false);
-    }
-  }
-
-  /**
-   * Check primary server health
-   */
-  async checkPrimaryServerHealth(): Promise<boolean> {
-    const primaryUrls = this.getPrimaryUrls();
-    const healthCheckUrl = primaryUrls.http.replace('/graphql', '/health');
-
-    try {
-      const response = await this.http
-        .get(healthCheckUrl, {
-          timeout: this.PRIMARY_HEALTH_CHECK_TIMEOUT,
-        } as any)
-        .toPromise();
-
-      const isHealthy = !!response;
-      this._primaryServerStatus.set(isHealthy);
-      return isHealthy;
-    } catch (error) {
-      // If health check fails, try basic GraphQL query
-      try {
-        const response = await this.http
-          .post(
-            primaryUrls.http,
-            {
-              query: '{ __typename }',
-            },
-            {
-              timeout: this.PRIMARY_HEALTH_CHECK_TIMEOUT,
-            } as any,
-          )
-          .toPromise();
-
-        const isHealthy = !!response;
-        this._primaryServerStatus.set(isHealthy);
-        return isHealthy;
-      } catch (graphqlError) {
-        console.log(
-          '⚠️ [Failover] Primary server health check failed:',
-          error,
-          graphqlError,
-        );
-        this._primaryServerStatus.set(false);
-        return false;
-      }
-    }
-  }
-
-  /**
-   * Start monitoring primary server status
-   */
-  startMonitoring(): void {
-    if (this.monitoringInterval) {
-      console.log('ℹ️ [Failover] Monitoring already started');
-      return;
-    }
-
-    console.log('🔍 [Failover] Starting primary server health monitoring...');
-
-    // Only monitor if we're on secondary
-    this.monitoringInterval = setInterval(async () => {
-      if (this._currentServer() === 'secondary' && !this._isSwitching()) {
-        const isHealthy = await this.checkPrimaryServerHealth();
-        console.log(
-          `🏥 [Failover] Primary server health: ${isHealthy ? 'HEALTHY' : 'DOWN'}`,
-        );
-
-        if (isHealthy) {
-          console.log(
-            '✅ [Failover] Primary server is back online, switching back...',
-          );
-          await this.switchToPrimary();
-        }
-      }
-    }, this.PRIMARY_HEALTH_CHECK_INTERVAL);
-
-    console.log('✅ [Failover] Primary server monitoring started');
-  }
-
-  /**
-   * Stop monitoring primary server status
-   */
-  stopMonitoring(): void {
-    if (this.monitoringInterval) {
-      clearInterval(this.monitoringInterval);
-      this.monitoringInterval = undefined;
-      console.log('🛑 [Failover] Primary server monitoring stopped');
-    }
-  }
-
-  /**
-   * Check primary and switch back if healthy
-   */
-  async checkPrimaryAndSwitchBack(): Promise<void> {
-    if (this._currentServer() === 'primary') {
-      return; // Already on primary
-    }
-
-    if (this._isSwitching()) {
-      return; // Already switching
-    }
-
-    const isHealthy = await this.checkPrimaryServerHealth();
-    if (isHealthy) {
-      console.log('✅ [Failover] Primary server is healthy, switching back...');
-      await this.switchToPrimary();
-    } else {
-      console.log(
-        '⚠️ [Failover] Primary server still down, staying on secondary',
-      );
     }
   }
 
@@ -322,12 +227,5 @@ export class ReplicationFailoverService {
     console.log('🚀 [Failover] Starting secondary service root...');
     // TODO: Implement actual service root logic on secondary server
     console.log('✅ [Failover] Secondary service root started (placeholder)');
-  }
-
-  /**
-   * Cleanup on destroy
-   */
-  ngOnDestroy(): void {
-    this.stopMonitoring();
   }
 }

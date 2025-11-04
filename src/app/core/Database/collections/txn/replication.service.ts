@@ -25,6 +25,12 @@ import { ReplicationFailoverService } from '../../core/services/replication-fail
 /**
  * Transaction-specific GraphQL replication service
  * Extends BaseReplicationService for transaction collection replication
+ *
+ * Features:
+ * - Dynamic checkpoint switching (server_updated_at for 10102, cloud_updated_at for 3001)
+ * - Automatic failover detection and switching
+ * - Device status-based primary recovery (NEW: replaces HTTP health checks)
+ * - WebSocket connection monitoring and retry logic
  */
 @Injectable({
   providedIn: 'root',
@@ -86,9 +92,8 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       // Check if we're on secondary and primary is back, switch back to primary
       if (this.failoverService.isOnSecondary()) {
         console.log(
-          '🔄 [TxnReplication] Connected while on secondary, checking if primary is back...',
+          '🔄 [TxnReplication] Connected while on secondary, will monitor device status for primary recovery...',
         );
-        await this.failoverService.checkPrimaryAndSwitchBack();
       }
     } catch (error) {
       console.error(
@@ -113,27 +118,47 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       batchSize: 5,
       urls: urls, // Pass URLs for failover support
       pullQueryBuilder: (checkpoint: any, limit: number) => {
+        // Use dynamic checkpoint and query based on current URL
+        const currentUrl =
+          this.currentUrls?.http || urls?.http || environment.apiUrl;
+        const modifiedQuery = ReplicationConfigBuilder.modifyQueryForServer(
+          PULL_TRANSACTION_QUERY,
+          currentUrl,
+        );
         return {
-          query: PULL_TRANSACTION_QUERY,
+          query: modifiedQuery,
           variables: {
             input: {
-              checkpoint:
-                ReplicationConfigBuilder.buildCheckpointInput(checkpoint),
+              checkpoint: ReplicationConfigBuilder.buildCheckpointInputForUrl(
+                checkpoint,
+                currentUrl,
+              ),
               limit: limit || 5,
             },
           },
         };
       },
       streamQueryBuilder: (headers: any) => {
+        // Use dynamic query based on current URL
+        const currentUrl =
+          this.currentUrls?.http || urls?.http || environment.apiUrl;
+        const modifiedQuery = ReplicationConfigBuilder.modifyQueryForServer(
+          STREAM_TRANSACTION_SUBSCRIPTION,
+          currentUrl,
+        );
         return {
-          query: STREAM_TRANSACTION_SUBSCRIPTION,
+          query: modifiedQuery,
           variables: {},
         };
       },
-      responseModifier: ReplicationConfigBuilder.createResponseModifier([
-        'pullTransaction',
-        'streamTransaction2',
-      ]),
+      responseModifier: (() => {
+        const currentUrl =
+          this.currentUrls?.http || urls?.http || environment.apiUrl;
+        return ReplicationConfigBuilder.createResponseModifierForUrl(
+          ['pullTransaction', 'streamTransaction'],
+          currentUrl,
+        );
+      })(),
       pullModifier: (doc: any) => {
         if (doc.status === 'OUT') {
           return {
@@ -227,7 +252,7 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
         const client_id = await this.identity.getClientId();
         const client_type = this.identity.getClientType();
         return {
-          client_id,
+          id: client_id,
           client_type,
           door_id: client_id,
         };
@@ -299,6 +324,10 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       ? { http: this.currentUrls.http, ws: this.currentUrls.ws }
       : config.url || { http: environment.apiUrl, ws: environment.wsUrl };
 
+    console.log(
+      `🔄 [TxnReplication] Using checkpoint field: ${ReplicationConfigBuilder.getTimestampFieldForUrl(url.http)} for URL: ${url.http}`,
+    );
+
     const replicationOptions: any = {
       collection: txnCollection as any,
       replicationIdentifier: this.replicationIdentifier || config.replicationId,
@@ -319,9 +348,19 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
       // Setup error handler
       this.setupReplicationErrorHandler(this.replicationState);
 
-      // เพิ่ม logging สำหรับ pull events
-      this.replicationState.received$.subscribe((received) => {
+      // Monitor replication events และ device status สำหรับ primary recovery
+      this.replicationState.received$.subscribe(async (received) => {
         console.log('✅ Transaction Replication received:', received);
+
+        // New system: Check device status when receiving data from cloud (3001)
+        // This replaces the old HTTP health check polling mechanism
+        const currentUrl = this.currentUrls?.http || environment.apiUrl;
+        if (
+          currentUrl.includes(':3001') &&
+          this.failoverService.isOnSecondary()
+        ) {
+          await this.checkDeviceStatusForPrimaryRecovery();
+        }
       });
 
       this.replicationState.sent$.subscribe((sent) => {
@@ -354,5 +393,49 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     }
 
     return this.replicationState;
+  }
+
+  /**
+   * Check device monitoring status for primary server recovery (NEW SYSTEM)
+   *
+   * Called when receiving data from cloud (3001) to detect if primary server is back online.
+   * This replaces the old HTTP health check polling mechanism with a more efficient
+   * data-driven approach that monitors actual device status in the database.
+   *
+   * When serverId='111' status becomes 'online', automatically switches back to primary.
+   */
+  private async checkDeviceStatusForPrimaryRecovery(): Promise<void> {
+    try {
+      // Get current device status for serverId from environment
+      const serverId = environment.serverId;
+      if (!serverId) {
+        console.warn(
+          '⚠️ [TxnReplication] No serverId configured, skipping device status check',
+        );
+        return;
+      }
+
+      // Query device-monitoring collection for our server
+      const deviceStatus =
+        await this.deviceMonitoringFacade.getDeviceMonitoringById(serverId);
+
+      if (deviceStatus && deviceStatus.status === 'online') {
+        console.log(
+          `✅ [TxnReplication] Server ${serverId} is back online, triggering switch to primary...`,
+        );
+
+        // Switch back to primary server
+        await this.failoverService.switchToPrimary();
+      } else {
+        console.log(
+          `⚠️ [TxnReplication] Server ${serverId} status: ${deviceStatus?.status || 'not found'}, staying on secondary`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        '❌ [TxnReplication] Error checking device status for primary recovery:',
+        error,
+      );
+    }
   }
 }
