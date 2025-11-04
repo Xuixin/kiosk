@@ -8,17 +8,6 @@ export type ServerType = 'primary' | 'secondary';
 /**
  * Replication Failover Service
  * Manages automatic failover from primary to secondary server with dynamic checkpoint switching
- *
- * Features:
- * - Primary (10102): Uses server_updated_at checkpoint
- * - Secondary (3001): Uses cloud_updated_at checkpoint
- * - Automatic checkpoint field detection based on server URL
- * - Device monitoring status-based primary recovery detection
- * - State persistence across page refresh using localStorage
- *
- * Recovery mechanism:
- * - Transaction replication monitors device-monitoring status when connected to 3001
- * - When serverId='111' status becomes 'online', automatically switches back to primary
  */
 @Injectable({
   providedIn: 'root',
@@ -114,11 +103,9 @@ export class ReplicationFailoverService {
 
   /**
    * Switch to secondary server
-   * Updated to use new checkpoint switching system
    */
   async switchToSecondary(): Promise<void> {
     if (this._isSwitching()) {
-      console.log('⚠️ [Failover] Already switching servers, skipping...');
       return;
     }
 
@@ -129,21 +116,14 @@ export class ReplicationFailoverService {
 
     try {
       this._isSwitching.set(true);
-      console.log('🔄 [Failover] Starting failover to secondary server...');
-
       await this.stopAllReplications();
 
       const secondaryUrls = this.getSecondaryUrls();
-      console.log('📡 [Failover] Secondary URLs:', secondaryUrls);
-      console.log(
-        '🔄 [Failover] Will use cloud_updated_at checkpoint for secondary server',
-      );
 
       await this.databaseService.restartReplicationsWithUrls(secondaryUrls);
 
       this._currentServer.set('secondary');
       this._isFailoverActive.set(true);
-      console.log('✅ [Failover] Switched to secondary server');
 
       // Step 5: Start secondary service root
       await this.startSecondaryServiceRoot();
@@ -151,10 +131,6 @@ export class ReplicationFailoverService {
       // Step 6: Log to history
       await this.deviceMonitoringHistoryFacade.appendSecondaryServerOnlineRev(
         secondaryUrls.http,
-      );
-
-      console.log(
-        '✅ [Failover] Failover to secondary completed with checkpoint switching',
       );
     } catch (error) {
       console.error('❌ [Failover] Error switching to secondary:', error);
@@ -166,11 +142,9 @@ export class ReplicationFailoverService {
 
   /**
    * Switch back to primary server
-   * Updated to use new checkpoint switching system
    */
   async switchToPrimary(): Promise<void> {
     if (this._isSwitching()) {
-      console.log('⚠️ [Failover] Already switching servers, skipping...');
       return;
     }
 
@@ -181,30 +155,18 @@ export class ReplicationFailoverService {
 
     try {
       this._isSwitching.set(true);
-      console.log('🔄 [Failover] Switching back to primary server...');
-
       // Step 1: Stop all replications from current server
-      console.log(
-        '🛑 [Failover] Stopping all replications from current server...',
-      );
       await this.stopAllReplications();
-      console.log('✅ [Failover] All replications stopped');
 
       // Step 2: Get primary URLs
       const primaryUrls = this.getPrimaryUrls();
-      console.log('📡 [Failover] Primary URLs:', primaryUrls);
-      console.log(
-        '🔄 [Failover] Will use server_updated_at checkpoint for primary server',
-      );
 
       // Step 3: Restart replications with primary URLs
-      // The new checkpoint system will automatically use server_updated_at for :10102
       await this.databaseService.restartReplicationsWithUrls(primaryUrls);
 
       // Step 4: Update state
       this._currentServer.set('primary');
       this._isFailoverActive.set(false);
-      console.log('✅ [Failover] Switched back to primary server');
 
       // Step 5: Log to device monitoring history
       await this.deviceMonitoringHistoryFacade.appendPrimaryServerConnectedRev();
@@ -222,11 +184,8 @@ export class ReplicationFailoverService {
 
   /**
    * Start secondary service root
-   * Placeholder for actual service root implementation
    */
   async startSecondaryServiceRoot(): Promise<void> {
-    console.log('🚀 [Failover] Starting secondary service root...');
     // TODO: Implement actual service root logic on secondary server
-    console.log('✅ [Failover] Secondary service root started (placeholder)');
   }
 }

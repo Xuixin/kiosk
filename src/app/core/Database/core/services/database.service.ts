@@ -525,16 +525,13 @@ export class DatabaseService {
       const services = Array.from(this.replicationServices.entries());
 
       // Step 1: Stop ALL replications first
-      console.log('🛑 [DatabaseService] Stopping all replications...');
       const stopPromises = services.map(async ([collectionName, service]) => {
         try {
           if (
             service &&
             typeof (service as any).stopReplication === 'function'
           ) {
-            console.log(`🛑 [DatabaseService] Stopping ${collectionName}...`);
             await (service as any).stopReplication();
-            console.log(`✅ [DatabaseService] Stopped ${collectionName}`);
             return { collectionName, stopped: true };
           }
           return { collectionName, stopped: false };
@@ -548,28 +545,14 @@ export class DatabaseService {
       });
 
       const stopResults = await Promise.all(stopPromises);
-      console.log(
-        '🛑 [DatabaseService] All replications stop results:',
-        stopResults,
-      );
 
       // Step 1.5: Wait for WebSocket connections to fully close
-      console.log(
-        '⏳ [DatabaseService] Waiting for WebSocket connections to close...',
-      );
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
 
       // Step 2: Start ALL replications with new URLs
-      console.log(
-        '🚀 [DatabaseService] Starting all replications with new URLs...',
-      );
       const restartPromises = services.map(
         async ([collectionName, service]) => {
           try {
-            console.log(
-              `🔄 [DatabaseService] Restarting replication for ${collectionName}...`,
-            );
-
             // Stop existing replication
             if (
               service &&
@@ -581,17 +564,11 @@ export class DatabaseService {
             // Get collection
             const metadata = CollectionRegistry.get(collectionName);
             if (!metadata) {
-              console.warn(
-                `⚠️ [DatabaseService] Collection ${collectionName} not found in registry`,
-              );
               return { collectionName, success: false };
             }
 
             const collection = dbInstance.collections[metadata.collectionKey];
             if (!collection) {
-              console.warn(
-                `⚠️ [DatabaseService] Collection ${collectionName} not found in database`,
-              );
               return { collectionName, success: false };
             }
 
