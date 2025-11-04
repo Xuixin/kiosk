@@ -20,9 +20,10 @@ import { DeviceMonitoringFacade } from 'src/app/core/Database/collections/device
 import { ModalsControllerService } from 'src/app/flow-services/modals-controller.service';
 import { ReceiptService } from './offline-receipt/receipt.service';
 import { DoorOfflineReceiptModal } from './offline-receipt/door-offline-receipt.modal';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, filter, timeout } from 'rxjs';
 import type { RegistryTransaction } from 'src/app/workflow/services/registry.service';
 import { UUIDUtils } from 'src/app/utils';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-registry-walkin-summary',
@@ -82,6 +83,9 @@ export class RegistryWalkinSummaryComponent
     super();
     this.updateDateTime();
     setInterval(() => this.updateDateTime(), 1000);
+
+    // Initialize device monitoring facade
+    this.deviceMonitoringFacade.ensureInitialized();
 
     // Use effect to watch context changes efficiently
     effect(() => {
@@ -320,10 +324,25 @@ export class RegistryWalkinSummaryComponent
 
     // Check if any selected door is offline and show receipt modal first
     try {
-      const allDoors = await firstValueFrom(
-        this.deviceMonitoringFacade.getDoors$(),
+      // Ensure device monitoring facade is initialized before getting doors
+      console.log(
+        '[submitRegistration] Ensuring device monitoring facade is initialized...',
       );
+      await this.deviceMonitoringFacade.ensureInitialized();
+      console.log('[submitRegistration] Device monitoring facade initialized');
+
+      console.log('[submitRegistration] Getting doors from facade...');
+      const allDoors = await firstValueFrom(
+        this.deviceMonitoringFacade.getDoors$().pipe(
+          filter((doors) => doors.length > 0), // Wait for actual doors data
+          timeout(5000), // 5 second timeout
+        ),
+      );
+
+      console.log('[submitRegistration] allDoors', allDoors);
       const receiptData = this.receiptService.build(ctx, allDoors, cid);
+
+      console.log('[submitRegistration] receiptData', receiptData);
       if (receiptData.offlineDoors.length > 0) {
         await this.modals.openModal({
           component: DoorOfflineReceiptModal,
@@ -350,8 +369,6 @@ export class RegistryWalkinSummaryComponent
     } catch (e) {
       console.warn('[Summary] Unable to resolve doors for offline check', e);
     }
-
-    console.log('[submitRegistration] ctx', ctx);
 
     const data: RegistryTransaction = {
       id: cid,
@@ -399,6 +416,83 @@ export class RegistryWalkinSummaryComponent
       if (document.body.contains(loadingAlert)) {
         document.body.removeChild(loadingAlert);
       }
+    }
+  }
+
+  /**
+   * Debug method to test getDoors$() functionality
+   */
+  async debugAllDoors(): Promise<void> {
+    console.log('🔍 [DEBUG] Starting debugAllDoors...');
+
+    try {
+      // Ensure device monitoring facade is initialized
+      console.log(
+        '🔍 [DEBUG] Ensuring device monitoring facade is initialized...',
+      );
+      await this.deviceMonitoringFacade.ensureInitialized();
+      console.log('🔍 [DEBUG] Device monitoring facade initialized');
+
+      // Get doors using the same method as submitRegistration
+      console.log('🔍 [DEBUG] Getting doors from facade...');
+
+      // First, let's check if there's any device monitoring data at all
+      console.log('🔍 [DEBUG] Checking all device monitoring data...');
+      const allDevices = await firstValueFrom(
+        this.deviceMonitoringFacade.getDeviceMonitoring$(),
+      );
+      console.log('🔍 [DEBUG] All devices:', allDevices);
+      console.log(
+        '🔍 [DEBUG] Device types found:',
+        allDevices.map((d) => d.type),
+      );
+
+      // Now get doors specifically - wait for actual data, not just first emission
+      const allDoors = await firstValueFrom(
+        this.deviceMonitoringFacade.getDoors$().pipe(
+          filter((doors) => doors.length > 0), // Wait for actual doors data
+          timeout(5000), // 5 second timeout
+        ),
+      );
+
+      console.log('🔍 [DEBUG] All doors result:', allDoors);
+      console.log('🔍 [DEBUG] Number of doors:', allDoors.length);
+
+      // Let's also try the door-permission approach with toSignal
+      console.log(
+        '🔍 [DEBUG] Trying door-permission approach with toSignal...',
+      );
+      const doors$ = this.deviceMonitoringFacade.getDoors$();
+
+      // Subscribe to the stream to see what we get
+      const subscription = doors$.subscribe((doors) => {
+        console.log('🔍 [DEBUG] toSignal approach - doors received:', doors);
+        console.log(
+          '🔍 [DEBUG] toSignal approach - number of doors:',
+          doors.length,
+        );
+      });
+
+      // Wait a bit and then unsubscribe
+      setTimeout(() => {
+        subscription.unsubscribe();
+      }, 2000);
+
+      if (allDoors.length > 0) {
+        console.log('🔍 [DEBUG] First door details:', allDoors[0]);
+        allDoors.forEach((door, index) => {
+          console.log(`🔍 [DEBUG] Door ${index + 1}:`, {
+            id: door.id,
+            name: door.name,
+            type: door.type,
+            status: door.status,
+          });
+        });
+      } else {
+        console.warn('🔍 [DEBUG] No doors found!');
+      }
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error in debugAllDoors:', error);
     }
   }
 

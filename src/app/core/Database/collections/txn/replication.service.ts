@@ -66,26 +66,44 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
 
     try {
       // Check last entry with type='primary-server-connect' to avoid duplicates
-      const lastEntry = await this.deviceMonitoringHistoryFacade.getLastByType(
-        'primary-server-connect',
-      );
+      const lastEntry =
+        await this.deviceMonitoringHistoryFacade.getLastByType('SERVER');
 
-      // Only append if last entry is not already 'PRIMARY_SERVER_CONNECT'
+      // Only append if last entry is not already 'ONLINE'
       // or if there's no previous entry
-      if (!lastEntry || lastEntry.status !== 'PRIMARY_SERVER_CONNECT') {
-        await this.deviceMonitoringHistoryFacade.appendPrimaryServerConnectedRev();
-        console.log(
-          'WebSocket connected (status changed):',
-          event,
-          `retryCount: ${this.wsRetryCount}`,
-          `lastStatus: ${lastEntry?.status || 'none'}`,
-        );
+      if (!lastEntry || lastEntry.status !== 'ONLINE') {
+        // Check which server we're connected to and use appropriate method
+        const currentUrl = this.currentUrls?.http || environment.apiUrl;
+        if (currentUrl.includes(':3001')) {
+          await this.deviceMonitoringHistoryFacade.appendSecondaryServerConnectedRev();
+          console.log(
+            'WebSocket connected to SECONDARY server (status changed):',
+            event,
+            `retryCount: ${this.wsRetryCount}`,
+            `lastStatus: ${lastEntry?.status || 'none'}`,
+            `url: ${currentUrl}`,
+          );
+        } else {
+          await this.deviceMonitoringHistoryFacade.appendPrimaryServerConnectedRev();
+          console.log(
+            'WebSocket connected to PRIMARY server (status changed):',
+            event,
+            `retryCount: ${this.wsRetryCount}`,
+            `lastStatus: ${lastEntry?.status || 'none'}`,
+            `url: ${currentUrl}`,
+          );
+        }
       } else {
+        const currentUrl = this.currentUrls?.http || environment.apiUrl;
+        const serverType = currentUrl.includes(':3001')
+          ? 'SECONDARY'
+          : 'PRIMARY';
         console.log(
-          'WebSocket connected (already connected, skipping append):',
+          `WebSocket connected to ${serverType} server (already connected, skipping append):`,
           event,
           `retryCount: ${this.wsRetryCount}`,
           `lastStatus: ${lastEntry.status}`,
+          `url: ${currentUrl}`,
         );
       }
 

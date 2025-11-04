@@ -7,6 +7,8 @@ export interface ReceiptViewModel {
   userName: string;
   doors: { id: string; name: string; status?: string }[];
   offlineDoors: { id: string; name: string; status?: string }[];
+  isClientOffline: boolean; // เพิ่มสถานะ client offline
+  clientOfflineMessage?: string; // ข้อความแจ้งเตือน client offline
 }
 
 @Injectable({ providedIn: 'root' })
@@ -27,6 +29,12 @@ export class ReceiptService {
       (d) => (d.status || '').toUpperCase() === 'OFFLINE',
     );
 
+    // ตรวจสอบสถานะ client offline
+    const isClientOffline = this.checkClientOfflineStatus();
+    const clientOfflineMessage = isClientOffline
+      ? this.getClientOfflineMessage()
+      : undefined;
+
     return {
       ticketId,
       timestamp: this.formatTimestamp(new Date()),
@@ -41,7 +49,24 @@ export class ReceiptService {
         name: d.name,
         status: d.status,
       })),
+      isClientOffline,
+      clientOfflineMessage,
     };
+  }
+
+  /**
+   * ตรวจสอบสถานะ offline ของ client/kiosk
+   * ใช้แค่ navigator.onLine เพื่อความง่าย
+   */
+  private checkClientOfflineStatus(): boolean {
+    return !navigator.onLine;
+  }
+
+  /**
+   * สร้างข้อความแจ้งเตือนสำหรับ client offline
+   */
+  private getClientOfflineMessage(): string {
+    return 'ข้อมูลจะถูกบันทึกไว้ในเครื่องและส่งไปยังเซิร์ฟเวอร์เมื่อกลับมาออนไลน์';
   }
 
   private formatTimestamp(date: Date): string {

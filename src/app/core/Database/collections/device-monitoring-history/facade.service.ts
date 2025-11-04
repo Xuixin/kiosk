@@ -205,17 +205,14 @@ export class DeviceMonitoringHistoryFacade extends BaseFacadeService<DeviceMonit
 
   async appendPrimaryServerDownRev(code?: number, message?: string) {
     try {
+      const client = await this.identity.getClientId();
       await this.append({
-        device_id: environment.serverName + ' : primary-server-down',
-        type: 'primary-server-down',
-        status: code === 1006 ? 'PRIMARY_SERVER_DOWN' : 'ERROR',
+        device_id: environment.serverId,
+        type: 'SERVER',
+        status: code === 1006 ? 'OFFLINE' : 'ERROR',
         created_by: (await this.identity.getClientId()) || '',
         client_created_at: Date.now().toString(),
-        meta_data: JSON.stringify({
-          code: code || 0,
-          message: message || 'Unknown error',
-          url: environment.apiUrl,
-        }),
+        meta_data: `${client} disconnect from ${environment.apiUrl} server`,
       });
     } catch (error) {
       console.error('Error appending primary server down revision:', error);
@@ -223,37 +220,51 @@ export class DeviceMonitoringHistoryFacade extends BaseFacadeService<DeviceMonit
   }
 
   async appendPrimaryServerConnectedRev() {
+    const client = await this.identity.getClientId();
     try {
       await this.append({
-        device_id: environment.serverName + ' : primary-server-connect',
-        type: 'primary-server-connect',
-        status: 'PRIMARY_SERVER_CONNECT',
+        device_id: environment.serverId,
+        type: 'SERVER',
+        status: 'ONLINE',
         created_by: (await this.identity.getClientId()) || '',
         client_created_at: Date.now().toString(),
-        meta_data: 'connected',
+        meta_data: `${client} connect to ${environment.serverId} server`,
       });
     } catch (error) {
       console.error('Error appending primary server connect revision:', error);
     }
   }
 
-  async appendSecondaryServerOnlineRev(serverUrl: string) {
+  async appendSecondaryServerConnectedRev() {
+    const client = await this.identity.getClientId();
     try {
       await this.append({
-        device_id: environment.serverName + ' : secondary-server-online',
-        type: 'secondary-server-online',
-        status: 'SECONDARY_SERVER_ONLINE',
+        device_id: environment.serverId,
+        type: 'CLOUD',
+        status: 'ONLINE',
         created_by: (await this.identity.getClientId()) || '',
         client_created_at: Date.now().toString(),
-        meta_data: JSON.stringify({
-          serverUrl: serverUrl,
-          message: 'Switched to secondary server',
-        }),
+        meta_data: `${client} connect to cloud ${environment.apiSecondaryUrl} server`,
       });
-      console.log(
-        '✅ [DeviceMonitoringHistory] Secondary server online logged:',
-        serverUrl,
+    } catch (error) {
+      console.error(
+        'Error appending secondary server connect revision:',
+        error,
       );
+    }
+  }
+
+  async appendSecondaryServerOnlineRev(serverUrl: string) {
+    try {
+      const client = await this.identity.getClientId();
+      await this.append({
+        device_id: environment.apiSecondaryUrl + ' : ' + environment.serverId,
+        type: 'SERVER',
+        status: 'ONLINE',
+        created_by: (await this.identity.getClientId()) || '',
+        client_created_at: Date.now().toString(),
+        meta_data: `${client} connect to ${environment.apiSecondaryUrl} server`,
+      });
     } catch (error) {
       console.error('Error appending secondary server online revision:', error);
     }

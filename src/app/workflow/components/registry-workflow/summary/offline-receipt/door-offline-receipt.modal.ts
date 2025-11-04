@@ -9,6 +9,8 @@ export interface DoorOfflineReceiptData {
   userName: string;
   doors: { id: string; name: string; status?: string }[];
   offlineDoors: { id: string; name: string; status?: string }[];
+  isClientOffline: boolean; // เพิ่มสถานะ client offline
+  clientOfflineMessage?: string; // ข้อความแจ้งเตือน client offline
 }
 
 @Component({
@@ -18,9 +20,35 @@ export interface DoorOfflineReceiptData {
   template: `
     <ion-content class="bg-gray-100">
       <div class="flex flex-col items-center justify-start min-h-full p-4">
+        <!-- Client Offline Alert - แสดงเฉพาะเมื่อต้นทาง offline -->
         <div
-          *ngIf="data?.offlineDoors?.length"
-          class="bg-orange-50 border-l-4 border-orange-400 p-3 m-4 mb-0 rounded "
+          *ngIf="data?.isClientOffline"
+          class="bg-blue-50 border-l-4 border-blue-400 p-3 m-4 mb-2 rounded"
+        >
+          <div class="flex items-start gap-2">
+            <ion-icon
+              name="save-outline"
+              class="text-blue-500 text-xl flex-shrink-0 mt-0.5"
+            ></ion-icon>
+            <div>
+              <div class="text-blue-800 font-semibold text-sm mb-1">
+                📱 บันทึกออฟไลน์ - ถ่ายรูปเก็บเป็นหลักฐาน
+              </div>
+              <div class="text-blue-700 text-xs mb-2">
+                ระบบไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ในขณะนี้
+              </div>
+              <div class="text-blue-800 text-xs">
+                💡 คำแนะนำ: กรุณาถ่ายรูปหน้าจอนี้เก็บไว้เป็นหลักฐาน
+                และแสดงให้เจ้าหน้าที่ตรวจสอบเมื่อเข้าใช้งาน
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Door Offline Alert - แสดงเฉพาะเมื่อต้นทางออนไลน์ -->
+        <div
+          *ngIf="!data?.isClientOffline && data?.offlineDoors?.length > 0"
+          class="bg-orange-50 border-l-4 border-orange-400 p-3 m-4 mb-0 rounded"
         >
           <div class="flex items-start gap-2">
             <ion-icon
@@ -30,7 +58,6 @@ export interface DoorOfflineReceiptData {
             <div>
               <div class="text-orange-800 font-semibold text-sm mb-1">
                 แจ้งเตือน: อุปกรณ์บางจุดไม่พร้อมใช้งาน
-                ขณะนี้ระบบตรวจพบว่าอุปกรณ์ดังต่อไปนี้ไม่สามารถเชื่อมต่อได้
               </div>
               <div class="text-orange-700 text-xs mb-2">
                 ประตู:

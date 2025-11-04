@@ -14,6 +14,7 @@ export type ServerType = 'primary' | 'secondary';
  * - Secondary (3001): Uses cloud_updated_at checkpoint
  * - Automatic checkpoint field detection based on server URL
  * - Device monitoring status-based primary recovery detection
+ * - State persistence across page refresh using localStorage
  *
  * Recovery mechanism:
  * - Transaction replication monitors device-monitoring status when connected to 3001
@@ -28,10 +29,20 @@ export class ReplicationFailoverService {
     DeviceMonitoringHistoryFacade,
   );
 
-  // Reactive state using Angular Signals
-  private readonly _currentServer = signal<ServerType>('primary');
+  // Storage keys for persistence
+  private readonly STORAGE_KEYS = {
+    currentServer: 'kiosk_failover_current_server',
+    isFailoverActive: 'kiosk_failover_active',
+  } as const;
+
+  // Reactive state using Angular Signals with localStorage persistence
+  private readonly _currentServer = signal<ServerType>(
+    this.loadCurrentServer(),
+  );
   private readonly _primaryServerStatus = signal<boolean>(true);
-  private readonly _isFailoverActive = signal<boolean>(false);
+  private readonly _isFailoverActive = signal<boolean>(
+    this.loadFailoverActive(),
+  );
   private readonly _isSwitching = signal<boolean>(false);
 
   // Public readonly signals
@@ -44,6 +55,80 @@ export class ReplicationFailoverService {
   public readonly isOnSecondary = computed(
     () => this._currentServer() === 'secondary',
   );
+
+  /**
+   * Load current server from localStorage
+   */
+  private loadCurrentServer(): ServerType {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEYS.currentServer);
+      if (stored === 'primary' || stored === 'secondary') {
+        console.log(
+          `🔄 [Failover] Restored server state from localStorage: ${stored}`,
+        );
+        return stored;
+      }
+    } catch (error) {
+      console.warn('Failed to load current server from localStorage:', error);
+    }
+    return 'primary'; // Default fallback
+  }
+
+  /**
+   * Load failover active state from localStorage
+   */
+  private loadFailoverActive(): boolean {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEYS.isFailoverActive);
+      const isActive = stored === 'true';
+      if (isActive) {
+        console.log(
+          '🔄 [Failover] Restored failover active state from localStorage',
+        );
+      }
+      return isActive;
+    } catch (error) {
+      console.warn(
+        'Failed to load failover active state from localStorage:',
+        error,
+      );
+    }
+    return false; // Default fallback
+  }
+
+  /**
+   * Save current server to localStorage
+   */
+  private saveCurrentServer(server: ServerType): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEYS.currentServer, server);
+      console.log(
+        `💾 [Failover] Saved server state to localStorage: ${server}`,
+      );
+    } catch (error) {
+      console.warn('Failed to save current server to localStorage:', error);
+    }
+  }
+
+  /**
+   * Save failover active state to localStorage
+   */
+  private saveFailoverActive(isActive: boolean): void {
+    try {
+      localStorage.setItem(
+        this.STORAGE_KEYS.isFailoverActive,
+        isActive.toString(),
+      );
+      console.log(
+        `💾 [Failover] Saved failover active state to localStorage: ${isActive}`,
+      );
+    } catch (error) {
+      console.warn(
+        'Failed to save failover active state to localStorage:',
+        error,
+      );
+    }
+  }
 
   /**
    * Get current server URLs based on active server
@@ -142,6 +227,11 @@ export class ReplicationFailoverService {
 
       this._currentServer.set('secondary');
       this._isFailoverActive.set(true);
+
+      // Persist state to localStorage
+      this.saveCurrentServer('secondary');
+      this.saveFailoverActive(true);
+
       console.log('✅ [Failover] Switched to secondary server');
 
       // Step 5: Start secondary service root
@@ -203,6 +293,11 @@ export class ReplicationFailoverService {
       // Step 4: Update state
       this._currentServer.set('primary');
       this._isFailoverActive.set(false);
+
+      // Persist state to localStorage
+      this.saveCurrentServer('primary');
+      this.saveFailoverActive(false);
+
       console.log('✅ [Failover] Switched back to primary server');
 
       // Step 5: Log to device monitoring history

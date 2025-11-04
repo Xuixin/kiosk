@@ -121,9 +121,7 @@ export abstract class BaseReplicationService<T = any> {
     if (config.pull) {
       const pullConfig = config.pull as any;
       if (!pullConfig.wsOptions) {
-        pullConfig.wsOptions = {
-          
-        };
+        pullConfig.wsOptions = {};
       }
 
       if (!pullConfig.wsOptions.keepAlive) {
@@ -398,7 +396,7 @@ export abstract class BaseReplicationService<T = any> {
 
     if (this._isRegistering && this.replicationIdentifier === identifier) {
       let attempts = 0;
-      const maxAttempts = 20;
+      const maxAttempts = 50; // Increased from 20 to 50 (5 seconds total)
 
       while (this._isRegistering && attempts < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, 100));

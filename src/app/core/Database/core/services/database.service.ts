@@ -6,6 +6,7 @@ import { DeviceMonitoringHistoryReplicationService } from '../../collections/dev
 import { NetworkStatusService } from './network-status.service';
 import { ClientIdentityService } from '../../../identity/client-identity.service';
 import { AdapterProviderService } from '../factory';
+import { ReplicationFailoverService } from './replication-failover.service';
 import {
   RxDBAdapter,
   getAdapterSchemas,
@@ -17,6 +18,57 @@ import { CollectionRegistry } from '../config/collection-registry';
 let GLOBAL_DB_SERVICE: DatabaseService | undefined;
 let initState: null | Promise<any> = null;
 let DB_INSTANCE: RxTxnsDatabase;
+
+/**
+ * Initialize failover state restoration
+ * Restores server state from localStorage and starts replications with correct URLs
+ */
+async function initializeFailoverState(
+  failoverService: ReplicationFailoverService,
+): Promise<void> {
+  console.log('🔄 [Failover] Checking for persisted failover state...');
+
+  // Get current server state (already loaded from localStorage in constructor)
+  const currentServer = failoverService.currentServer();
+  const isFailoverActive = failoverService.isFailoverActive();
+
+  if (isFailoverActive && currentServer === 'secondary') {
+    console.log(
+      '🔄 [Failover] Detected persisted secondary server state, restoring...',
+    );
+
+    // Get database service instance
+    const databaseService = GLOBAL_DB_SERVICE;
+    if (!databaseService) {
+      console.warn(
+        '⚠️ [Failover] Database service not available for state restoration',
+      );
+      return;
+    }
+
+    // Get secondary URLs and restart replications
+    const secondaryUrls = failoverService.getSecondaryUrls();
+    console.log('📡 [Failover] Restoring secondary URLs:', secondaryUrls);
+
+    try {
+      await databaseService.restartReplicationsWithUrls(secondaryUrls);
+      console.log(
+        '✅ [Failover] Successfully restored secondary server replications',
+      );
+    } catch (error) {
+      console.error(
+        '❌ [Failover] Failed to restore secondary server replications:',
+        error,
+      );
+      // Reset to primary on failure
+      failoverService.getCurrentUrls(); // This will reset to primary URLs
+    }
+  } else if (currentServer === 'primary') {
+    console.log(
+      'ℹ️ [Failover] Primary server state detected, no restoration needed',
+    );
+  }
+}
 
 /**
  * Replication service configuration
@@ -214,6 +266,7 @@ export async function initDatabase(injector: Injector): Promise<void> {
       const adapterProvider = injector.get(
         AdapterProviderService,
       ) as AdapterProviderService;
+      const failoverService = injector.get(ReplicationFailoverService);
 
       // Check if client ID exists, if not show device selection modal
       let clientId = await identityService.getClientId();
@@ -361,6 +414,17 @@ export async function initDatabase(injector: Injector): Promise<void> {
           console.error('❌ Error setting up replication services:', error);
           // Don't throw - replication can retry later
         }
+
+        // Initialize failover state restoration
+        try {
+          console.log(
+            '🔄 [Database] Initializing failover state restoration...',
+          );
+          await initializeFailoverState(failoverService);
+        } catch (error) {
+          console.error('❌ Error initializing failover state:', error);
+          // Don't throw - failover can work without state restoration
+        }
       });
     } catch (error) {
       console.error('❌ Fatal error during database initialization:', error);
@@ -390,6 +454,8 @@ export class DatabaseService {
     | DeviceMonitoringReplicationService
     | DeviceMonitoringHistoryReplicationService
   > = new Map();
+
+  private isRestarting = false; // Lock to prevent concurrent restarts
 
   /**
    * Get all replication services (for monitoring)
@@ -498,140 +564,167 @@ export class DatabaseService {
     http: string;
     ws: string;
   }): Promise<void> {
+    // Prevent concurrent restarts
+    if (this.isRestarting) {
+      console.warn(
+        '⚠️ [DatabaseService] Replication restart already in progress, skipping...',
+      );
+      return;
+    }
+
+    this.isRestarting = true;
     console.log(
       `🔄 [DatabaseService] Restarting replications with URLs:`,
       urls,
     );
 
-    // Get database instance
-    const dbInstance = this.db;
-    if (!dbInstance) {
-      throw new Error('Database not initialized');
-    }
-
-    // Get all replication services
-    const services = Array.from(this.replicationServices.entries());
-
-    // Step 1: Stop ALL replications first
-    console.log('🛑 [DatabaseService] Stopping all replications...');
-    const stopPromises = services.map(async ([collectionName, service]) => {
-      try {
-        if (service && typeof (service as any).stopReplication === 'function') {
-          console.log(`🛑 [DatabaseService] Stopping ${collectionName}...`);
-          await (service as any).stopReplication();
-          console.log(`✅ [DatabaseService] Stopped ${collectionName}`);
-          return { collectionName, stopped: true };
-        }
-        return { collectionName, stopped: false };
-      } catch (error) {
-        console.warn(
-          `⚠️ [DatabaseService] Error stopping ${collectionName}:`,
-          error,
-        );
-        return { collectionName, stopped: false, error };
+    try {
+      // Get database instance
+      const dbInstance = this.db;
+      if (!dbInstance) {
+        throw new Error('Database not initialized');
       }
-    });
 
-    const stopResults = await Promise.all(stopPromises);
-    console.log(
-      '🛑 [DatabaseService] All replications stop results:',
-      stopResults,
-    );
+      // Get all replication services
+      const services = Array.from(this.replicationServices.entries());
 
-    // Step 2: Start ALL replications with new URLs
-    console.log(
-      '🚀 [DatabaseService] Starting all replications with new URLs...',
-    );
-    const restartPromises = services.map(async ([collectionName, service]) => {
-      try {
-        console.log(
-          `🔄 [DatabaseService] Restarting replication for ${collectionName}...`,
-        );
-
-        // Stop existing replication
-        if (service && typeof (service as any).stopReplication === 'function') {
-          await (service as any).stopReplication();
-        }
-
-        // Get collection
-        const metadata = CollectionRegistry.get(collectionName);
-        if (!metadata) {
+      // Step 1: Stop ALL replications first
+      console.log('🛑 [DatabaseService] Stopping all replications...');
+      const stopPromises = services.map(async ([collectionName, service]) => {
+        try {
+          if (
+            service &&
+            typeof (service as any).stopReplication === 'function'
+          ) {
+            console.log(`🛑 [DatabaseService] Stopping ${collectionName}...`);
+            await (service as any).stopReplication();
+            console.log(`✅ [DatabaseService] Stopped ${collectionName}`);
+            return { collectionName, stopped: true };
+          }
+          return { collectionName, stopped: false };
+        } catch (error) {
           console.warn(
-            `⚠️ [DatabaseService] Collection ${collectionName} not found in registry`,
+            `⚠️ [DatabaseService] Error stopping ${collectionName}:`,
+            error,
           );
-          return { collectionName, success: false };
+          return { collectionName, stopped: false, error };
         }
+      });
 
-        const collection = dbInstance.collections[metadata.collectionKey];
-        if (!collection) {
-          console.warn(
-            `⚠️ [DatabaseService] Collection ${collectionName} not found in database`,
-          );
-          return { collectionName, success: false };
-        }
-
-        // Re-register with new URLs
-        // Each replication service should handle URL override in its buildReplicationConfig
-        // We need to pass URLs through a context or directly to the service
-        if (
-          service &&
-          typeof (service as any).setReplicationUrls === 'function'
-        ) {
-          // If service has method to set URLs, use it
-          (service as any).setReplicationUrls(urls);
-        }
-
-        // Register replication with new URLs
-        const replication = await (service as any).register_replication(
-          collection,
-          metadata.replicationId,
-          urls, // Pass URLs to registration
-        );
-
-        if (replication) {
-          console.log(
-            `✅ [DatabaseService] Replication restarted for ${collectionName}`,
-          );
-          return { collectionName, success: true };
-        } else {
-          console.warn(
-            `⚠️ [DatabaseService] Replication registration returned null for ${collectionName}`,
-          );
-          return { collectionName, success: false };
-        }
-      } catch (error) {
-        console.error(
-          `❌ [DatabaseService] Error restarting replication for ${collectionName}:`,
-          error,
-        );
-        return { collectionName, success: false };
-      }
-    });
-
-    const results = await Promise.all(restartPromises);
-    const successCount = results.filter((r) => r.success).length;
-    const failCount = results.filter((r) => !r.success).length;
-
-    console.log(
-      `🚀 [DatabaseService] All replications start results:`,
-      results,
-    );
-
-    console.log(
-      `✅ [DatabaseService] Replication restart completed: ${successCount} succeeded, ${failCount} failed`,
-    );
-
-    if (failCount > 0) {
-      console.warn(
-        `⚠️ [DatabaseService] Some replications failed to restart:`,
-        results.filter((r) => !r.success).map((r) => r.collectionName),
+      const stopResults = await Promise.all(stopPromises);
+      console.log(
+        '🛑 [DatabaseService] All replications stop results:',
+        stopResults,
       );
-      throw new Error(`Failed to restart ${failCount} replications`);
-    }
 
-    console.log(
-      '🎉 [DatabaseService] All replications successfully restarted with new URLs',
-    );
+      // Step 1.5: Wait for WebSocket connections to fully close
+      console.log(
+        '⏳ [DatabaseService] Waiting for WebSocket connections to close...',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+
+      // Step 2: Start ALL replications with new URLs
+      console.log(
+        '🚀 [DatabaseService] Starting all replications with new URLs...',
+      );
+      const restartPromises = services.map(
+        async ([collectionName, service]) => {
+          try {
+            console.log(
+              `🔄 [DatabaseService] Restarting replication for ${collectionName}...`,
+            );
+
+            // Stop existing replication
+            if (
+              service &&
+              typeof (service as any).stopReplication === 'function'
+            ) {
+              await (service as any).stopReplication();
+            }
+
+            // Get collection
+            const metadata = CollectionRegistry.get(collectionName);
+            if (!metadata) {
+              console.warn(
+                `⚠️ [DatabaseService] Collection ${collectionName} not found in registry`,
+              );
+              return { collectionName, success: false };
+            }
+
+            const collection = dbInstance.collections[metadata.collectionKey];
+            if (!collection) {
+              console.warn(
+                `⚠️ [DatabaseService] Collection ${collectionName} not found in database`,
+              );
+              return { collectionName, success: false };
+            }
+
+            // Re-register with new URLs
+            // Each replication service should handle URL override in its buildReplicationConfig
+            // We need to pass URLs through a context or directly to the service
+            if (
+              service &&
+              typeof (service as any).setReplicationUrls === 'function'
+            ) {
+              // If service has method to set URLs, use it
+              (service as any).setReplicationUrls(urls);
+            }
+
+            // Register replication with new URLs
+            const replication = await (service as any).register_replication(
+              collection,
+              metadata.replicationId,
+              urls, // Pass URLs to registration
+            );
+
+            if (replication) {
+              console.log(
+                `✅ [DatabaseService] Replication restarted for ${collectionName}`,
+              );
+              return { collectionName, success: true };
+            } else {
+              console.warn(
+                `⚠️ [DatabaseService] Replication registration returned null for ${collectionName}`,
+              );
+              return { collectionName, success: false };
+            }
+          } catch (error) {
+            console.error(
+              `❌ [DatabaseService] Error restarting replication for ${collectionName}:`,
+              error,
+            );
+            return { collectionName, success: false };
+          }
+        },
+      );
+
+      const results = await Promise.all(restartPromises);
+      const successCount = results.filter((r) => r.success).length;
+      const failCount = results.filter((r) => !r.success).length;
+
+      console.log(
+        `🚀 [DatabaseService] All replications start results:`,
+        results,
+      );
+
+      console.log(
+        `✅ [DatabaseService] Replication restart completed: ${successCount} succeeded, ${failCount} failed`,
+      );
+
+      if (failCount > 0) {
+        console.warn(
+          `⚠️ [DatabaseService] Some replications failed to restart:`,
+          results.filter((r) => !r.success).map((r) => r.collectionName),
+        );
+        throw new Error(`Failed to restart ${failCount} replications`);
+      }
+
+      console.log(
+        '🎉 [DatabaseService] All replications successfully restarted with new URLs',
+      );
+    } finally {
+      this.isRestarting = false; // Always release the lock
+    }
   }
 
   /**

@@ -35,6 +35,27 @@ import { GlobalErrorHandlerService } from './core/error-handling/error-handler.s
 import { OfflineHttpInterceptor } from './core/interceptors/offline-http.interceptor';
 import { OfflineBannerComponent } from './components/offline-banner/offline-banner.component';
 
+// Ionic Icons
+import { addIcons } from 'ionicons';
+import {
+  saveOutline,
+  warning,
+  wifiOutline,
+  documentTextOutline,
+  archiveOutline,
+  cloudOfflineOutline,
+} from 'ionicons/icons';
+
+// Register Ionic Icons
+addIcons({
+  'save-outline': saveOutline,
+  warning: warning,
+  'wifi-outline': wifiOutline,
+  'document-text-outline': documentTextOutline,
+  'archive-outline': archiveOutline,
+  'cloud-offline-outline': cloudOfflineOutline,
+});
+
 @NgModule({
   declarations: [AppComponent],
   imports: [

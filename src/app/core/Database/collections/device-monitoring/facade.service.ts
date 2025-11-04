@@ -134,10 +134,31 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
   getDeviceMonitoringByType$(
     type: string | string[],
   ): Observable<DeviceMonitoringDocument[]> {
+    console.log(
+      `[DeviceMonitoringFacade] getDeviceMonitoringByType$ called with type:`,
+      type,
+    );
     const collection = this.collection;
     if (!collection) {
+      console.warn(
+        `[DeviceMonitoringFacade] Collection is null, returning empty observable`,
+      );
       return new Observable((observer) => observer.next([]));
     }
+    console.log(
+      `[DeviceMonitoringFacade] Collection found, querying for type:`,
+      type,
+    );
+
+    // Debug: Check all documents in the collection
+    collection.find$({}).subscribe((allDocs) => {
+      if (allDocs.length > 0) {
+        console.log(
+          `[DeviceMonitoringFacade] Collection has ${allDocs.length} documents`,
+        );
+      }
+    });
+
     // Use RxDB query selector to filter by type field (type is indexed)
     // Filter out deleted documents as well
     return collection
@@ -146,7 +167,19 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
           type: Array.isArray(type) ? { $in: type } : type,
         },
       } as any)
-      .pipe(map((docs) => docs.filter((doc) => !(doc as any)._deleted)));
+      .pipe(
+        map((docs) => {
+          const filtered = docs.filter((doc) => !(doc as any)._deleted);
+          console.log(
+            `[DeviceMonitoringFacade] Found ${docs.length} docs, ${filtered.length} after filtering deleted`,
+          );
+          console.log(
+            `[DeviceMonitoringFacade] Filtered docs:`,
+            filtered.map((d) => ({ id: d.id, type: d.type, name: d.name })),
+          );
+          return filtered;
+        }),
+      );
   }
 
   /**
