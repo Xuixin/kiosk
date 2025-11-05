@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Inject, forwardRef } from '@angular/core';
 import { replicateGraphQL } from 'rxdb/plugins/replication-graphql';
 import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
 import { RxCollection } from 'rxdb';
@@ -21,6 +21,8 @@ import { environment } from 'src/environments/environment';
 import { DeviceMonitoringHistoryFacade } from '../device-monitoring-history/facade.service';
 import { DeviceMonitoringFacade } from '../device-monitoring/facade.service';
 import { ReplicationFailoverService } from '../../core/services/replication-failover.service';
+import { ReplicationStateService } from '../../../centerlize/replication-state.service';
+import { FailoverEventService } from '../../../centerlize/failover-event.service';
 
 /**
  * Transaction-specific GraphQL replication service
@@ -48,6 +50,9 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     private readonly deviceMonitoringHistoryFacade: DeviceMonitoringHistoryFacade,
     private readonly deviceMonitoringFacade: DeviceMonitoringFacade,
     private readonly failoverService: ReplicationFailoverService,
+    @Inject(forwardRef(() => ReplicationStateService))
+    private readonly replicationStateService: ReplicationStateService,
+    private readonly failoverEventService: FailoverEventService,
   ) {
     super(networkStatus);
     this.collectionName = 'txn';
@@ -62,7 +67,22 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
     this.lastConnectedTime = timestamp;
 
     // Reset retry count on successful connection
+    const previousRetryCount = this.wsRetryCount;
     this.wsRetryCount = 0;
+
+    // Emit connection restored event if we had previous failures
+    if (previousRetryCount > 0) {
+      const currentUrl = this.currentUrls?.http || environment.apiUrl;
+      this.failoverEventService.emitEvent(
+        'connection_restored',
+        'txn',
+        {
+          previousRetryCount,
+          url: currentUrl,
+        },
+        'low',
+      );
+    }
 
     try {
       // Check last entry with type='primary-server-connect' to avoid duplicates
@@ -209,18 +229,35 @@ export class TransactionReplicationService extends BaseReplicationService<RxTxnD
               );
               await this.deviceMonitoringFacade.handlePrimaryServerDown();
 
-              // Trigger failover to secondary server
+              // Emit failover event to centralized system instead of direct failover
               console.log(
-                '🔄 [TxnReplication] Primary server down, triggering failover...',
+                '🔄 [TxnReplication] Primary server connection failures detected, emitting failover event...',
               );
-              try {
-                await this.failoverService.switchToSecondary();
-              } catch (failoverError) {
-                console.error(
-                  '❌ [TxnReplication] Failover error:',
-                  failoverError,
-                );
-              }
+
+              const currentUrl = this.currentUrls?.http || environment.apiUrl;
+              this.failoverEventService.emitEvent(
+                'connection_failure',
+                'txn',
+                {
+                  retryCount: this.wsRetryCount,
+                  errorCode: event.code,
+                  errorReason: event.reason,
+                  url: currentUrl,
+                },
+                'critical',
+              );
+
+              // Also notify the replication state service
+              this.replicationStateService.emitFailoverEvent(
+                'connection_failure',
+                'txn',
+                {
+                  retryCount: this.wsRetryCount,
+                  errorCode: event.code,
+                  errorReason: event.reason,
+                  url: currentUrl,
+                },
+              );
             }
           } else {
             this.wsRetryCount = 0;

@@ -351,7 +351,9 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
       }
     } else {
       // Try to find any SERVER type device as fallback
-      const serverDevices = activeDevices.filter((d) => d.type === 'SERVER');
+      const serverDevices = activeDevices.filter(
+        (d) => d.type === 'SERVER' || d.type === 'server',
+      );
       if (serverDevices.length > 0) {
         console.warn(
           `⚠️ Device with name "${serverName}" not found. Using first SERVER device:`,

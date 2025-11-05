@@ -1,0 +1,366 @@
+[vite] connecting...
+client:827 [vite] connected.
+node-component-registry.service.ts:154 All workflow components registered successfully: {totalComponents: 4, components: Array(4)}components: (4) ['RegistryWalkinSummaryComponent', 'IdCardCaptureComponent', 'UserDataFormComponent', 'DoorPermissionComponent']totalComponents: 4[[Prototype]]: Object
+database.service.ts:201 ⚠️ Database already initializing, waiting for completion...
+app.module.ts:102 🚀 [AppModule] Starting workflow component preload...
+workflow-preload.service.ts:21 📦 [WorkflowPreload] Starting component preload...
+workflow-preload.service.ts:36 📦 Total components to preload: 4 (4) ['RegistryWalkinSummaryComponent', 'IdCardCaptureComponent', 'UserDataFormComponent', 'DoorPermissionComponent']
+database.service.ts:281 💾 Database name: KIOSK-k-111
+adapter-provider.service.ts:57 AdapterProviderService: Creating adapter rxdb
+rxdb-adapter.ts:67 RxDBAdapter: creating database with name: KIOSK-k-111
+rx-storage-instance-dexie.js:29 -------------- RxDB Open Core RxStorage -------------------------------
+You are using the free Dexie.js based RxStorage implementation from RxDB https://rxdb.info/rx-storage-dexie.html?console=dexie 
+While this is a great option, we want to let you know that there are faster storage solutions available in our premium plugins.
+For professional users and production environments, we highly recommend considering these premium options to enhance performance and reliability.
+ https://rxdb.info/premium/?console=dexie 
+If you already purchased premium access you can disable this log by calling the setPremiumFlag() function from rxdb-premium/plugins/shared.
+---------------------------------------------------------------------
+(anonymous) @ main.ts:6Understand this warning
+rxdb-adapter.ts:100 RxDBAdapter: database created
+rxdb-adapter.ts:109 RxDBAdapter: adding collections...
+id-card-capture.component.ts:30 [IdCardCaptureComponent] Class loaded
+rxdb-adapter.ts:134 RxDBAdapter: initialization complete
+adapter-provider.service.ts:67 AdapterProviderService: Initialization complete
+database.service.ts:307 ✅ Database initialized successfully
+facade.service.ts:44 DeviceMonitoringService: Created (lazy initialization)
+failover-event.service.ts:101 🔄 [FailoverEventService] Event processing pipeline initialized
+base-replication.service.ts:134 [applyWebSocketMonitoring] txn: wsOptions.on already exists
+base-replication.service.ts:134 [applyWebSocketMonitoring] device_monitoring: wsOptions.on already exists
+base-replication.service.ts:134 [applyWebSocketMonitoring] device_monitoring_history: wsOptions.on already exists
+database.service.ts:343 ✅ Replication registered: Transaction
+database.service.ts:343 ✅ Replication registered: Device Monitoring
+database.service.ts:343 ✅ Replication registered: Device Monitoring History
+replication-state.service.ts:104 🔄 [ReplicationStateService] Initializing replication monitoring...
+🚨 Global Error Handler: {
+    "message": "NG0203: effect() can only be used within an injection context such as a constructor, a factory function, a field initializer, or a function used with `runInInjectionContext`. Find more at https://v20.angular.dev/errors/NG0203",
+    "stack": "Error: NG0203: effect() can only be used within an injection context such as a constructor, a factory function, a field initializer, or a function used with `runInInjectionContext`. Find more at https://v20.angular.dev/errors/NG0203\n    at assertInInjectionContext (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/chunk-JTYB2W5O.js?v=c8184f73:2024:11)\n    at effect (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/chunk-JTYB2W5O.js?v=c8184f73:3141:5)\n    at _ReplicationStateService.setupFailoverCoordination (http://localhost:8100/chunk-E5YZTLGO.js:3064:5)\n    at http://localhost:8100/chunk-E5YZTLGO.js:3038:12\n    at timer (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/zone__js.js?v=c8184f73:1439:27)\n    at _ZoneDelegate.invokeTask (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/zone__js.js?v=c8184f73:360:171)\n    at http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/chunk-KV7VDN76.js?v=c8184f73:4685:49\n    at AsyncStackTaggingZoneSpec.onInvokeTask (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/chunk-KV7VDN76.js?v=c8184f73:4685:30)\n    at _ZoneDelegate.invokeTask (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/zone__js.js?v=c8184f73:360:54)\n    at Object.onInvokeTask (http://localhost:8100/@fs/Users/imron/Desktop/kiosk/.angular/cache/20.3.6/app/vite/deps/chunk-KV7VDN76.js?v=c8184f73:4889:25)",
+    "name": "Error",
+    "code": -203
+}
+zone.js:165 Uncaught TypeError: error?.code?.toLowerCase is not a function
+    at _GlobalErrorHandlerService.isNetworkError
+    WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 1
+failover-monitoring.service.ts:118 🔍 [FailoverMonitoringService] Initializing monitoring system...
+failover-monitoring.service.ts:146 ▶️ [FailoverMonitoringService] Starting monitoring...
+failover-monitoring.service.ts:375 ℹ️ [FailoverMonitoringService] INFO: Monitoring Started - Failover monitoring system is now active undefined
+app.component.ts:36 🚀 App component initialized
+app.component.ts:65 🔄 [AppComponent] Initializing centralized failover system...
+app.component.ts:140 ✅ [AppComponent] Centralized failover system initialized
+app.component.ts:147 📊 [AppComponent] Initializing monitoring and logging system...
+app.component.ts:156 🏥 [AppComponent] System health changed: unknown
+app.component.ts:187 📈 [AppComponent] Health Summary Changed: {overall: 'unknown', replications: '0/0', server: 'unknown', alerts: 0, lastUpdate: '1970-01-01T00:00:00.000Z'}
+app.component.ts:199 ✅ [AppComponent] Monitoring and logging system initialized
+app.component.ts:279 🔍 [AppComponent] Setting up global primary server watcher...
+debug_node.mjs:18253 Angular is running in development mode.
+app.component.ts:168 🚨 [AppComponent] 1 critical alerts: 
+[{…}]
+0
+: 
+{id: 'alert_1762273751318_gqnwtck35', level: 'critical', title: 'System Health Critical', message: 'System health changed from unknown to critical', timestamp: 1762273751318, …}
+length
+: 
+1
+📈 [AppComponent] Health Summary Changed: {
+    "overall": "unknown",
+    "replications": "0/0",
+    "server": "unknown",
+    "alerts": 1,
+    "lastUpdate": "1970-01-01T00:00:00.000Z"
+}[FailoverMonitoringService] CRITICAL ALERT: System Health Critical - System health changed from unknown to Critical
+{
+    "previousHealth": "unknown",
+    "currentHealth": "critical"
+}
+🏥 [AppComponent] System health changed: critical
+app.component.ts:187 📈 [AppComponent] Health Summary Changed: {overall: 'critical', replications: '0/0', server: 'unknown', alerts: 1, lastUpdate: '1970-01-01T00:00:00.000Z'}
+app.component.ts:187 📈 [AppComponent] Health Summary Changed: {overall: 'critical', replications: '0/3', server: 'primary', alerts: 1, lastUpdate: '2025-11-04T16:29:11.317Z'}
+index3.js:26 [Violation] Added non-passive event listener to a scroll-blocking 'touchstart' event. Consider marking event handler as 'passive' to make the page more responsive. See
+HomePage constructor
+base-facade.service.ts:96 📊 Setting up txn subscriptions...
+facade.service.ts:71 📊 Local database updated: 0 transactions
+base-facade.service.ts:100 ✅ txn subscriptions setup completed
+flow-runner.service.ts:138 Current state: {current: null, lastTask: null, history: Array(0), flow: null, context: {…}, …}
+facade.service.ts:71 📊 Local database updated: 9 transactions
+app.component.ts:121 📊 [AppComponent] All replications are inactive: (3) [{…}, {…}, {…}]
+replication-state.service.ts:229 📊 [ReplicationStateService] Replication status update: {statuses: Array(3), allPrimaryInactive: true, primaryServerStatuses: 3}
+replication.service.ts:265 WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 2
+replication.service.ts:265 WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 3
+replication.service.ts:265 WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 4
+replication.service.ts:265 WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 5
+facade.service.ts:306 🔍 Searching for primary server device: name="server-มอ"
+facade.service.ts:312 📊 Total devices in collection: 5 (5) [{…}, {…}, {…}, {…}, {…}]
+Primary server device not found: name="server-มอ", and no SERVER type devices e
+🔄 [TxnReplication] Primary server connection failures detected, emitting failover event...
+failover-event.service.ts:124 📡 [FailoverEventService] Event emitted: {id: 'event_1762273790540_844291xwu', type: 'connection_failure', source: 'txn', timestamp: 1762273790540, data: {…}, …}
+failover-event.service.ts:136 🚨 [FailoverEventService] Failover decision made: {shouldFailover: true, reason: 'High retry counts detected (1 events); Critical events detected (1 events)', confidence: 0.7, contributingEvents: Array(1), timestamp: 1762273790540}
+[AppComponent] 2 critical : [
+    {
+        "id": "alert_1762273790541_amj3pvca5",
+        "level": "critical",
+        "title": "Critical Failover Event",
+        "message": "connection_failure from txn: {\"retryCount\":6,\"errorCode\":1006,\"errorReason\":\"\",\"url\":\"http://localhost:10102/graphql\"}",
+        "timestamp": 1762273790541,
+        "source": "txn",
+        "data": {
+            "id": "event_1762273790540_844291xwu",
+            "type": "connection_failure",
+            "source": "txn",
+            "timestamp": 1762273790540,
+            "data": {
+                "retryCount": 6,
+                "errorCode": 1006,
+                "errorReason": "",
+                "url": "http://localhost:10102/graphql"
+            },
+            "severity": "critical"
+        },
+        "acknowledged": false
+    },
+    {
+        "id": "alert_1762273751318_gqnwtck35",
+        "level": "critical",
+        "title": "System Health Critical",
+        "message": "System health changed from unknown to critical",
+        "timestamp": 1762273751318,
+        "source": "health_monitor",
+        "data": {
+            "previousHealth": "unknown",
+            "currentHealth": "critical"
+        },
+        "acknowledged": false
+    }
+]
+📈 [AppComponent] Health Summary Changed: {
+    "overall": "critical",
+    "replications": "0/3",
+    "server": "primary",
+    "alerts": 2,
+    "lastUpdate": "2025-11-04T16:29:46.511Z"
+}
+failover-monitoring.service.ts:365 🚨 [FailoverMonitoringService] CRITICAL ALERT: Critical Failover Event - connection_failure from txn: {"retryCount":6,"errorCode":1006,"errorReason":"","url":"http://localhost:10102/graphql"} 
+{
+    "id": "event_1762273790540_844291xwu",
+    "type": "connection_failure",
+    "source": "txn",
+    "timestamp": 1762273790540,
+    "data": {
+        "retryCount": 6,
+        "errorCode": 1006,
+        "errorReason": "",
+        "url": "http://localhost:10102/graphql"
+    },
+    "severity": "critical"
+}
+🚨 [AppComponent] High priority failover event: {id: 'event_1762273790540_844291xwu', type: 'connection_failure', source: 'txn', timestamp: 1762273790540, data: {…}, …}
+replication-state.service.ts:240 🚨 [ReplicationStateService] Failover event: connection_failure from txn {retryCount: 6, errorCode: 1006, errorReason: '', url: 'http://localhost:10102/graphql'}
+🔄 [ReplicationStateService] Triggering coordinated failover for reason: Connection failure from txn
+replication-state.service.ts:269 ⏱️ [ReplicationStateService] Timeout set to 10000ms
+replication-state.service.ts:290 🔄 [ReplicationStateService] Waiting for coordinated shutdown...
+replication.service.ts:265 WebSocket closed: CloseEvent {isTrusted: true, wasClean: false, code: 1006, reason: '', type: 'close', …} retryCount: 6
+app.component.ts:75 🚨 [AppComponent] Failover decision received: {shouldFailover: true, reason: 'High retry counts detected (1 events); Critical events detected (1 events)', confidence: 0.7, contributingEvents: Array(1), timestamp: 1762273790540}
+replication-state.service.ts:260 ⚠️ [ReplicationStateService] Failover already in progress, skipping
+⚠️ [ReplicationStateService] Coordinated failover timeout after 10000ms, executing fallback...
+replication-state.service.ts:364 🚨 [ReplicationStateService] Executing fallback failover: Timeout after 10000ms: Connection failure from txn
+⏱️ [ReplicationStateService] Step 1/4: Force stopping all replications...
+database.service.ts:796 🚨 [DatabaseService] Force stopping all replications...
+database.service.ts:817 🛑 [DatabaseService] Force stop completed
+replication-state.service.ts:376 ⏱️ [ReplicationStateService] Step 2/4: Waiting 2s for cleanup...
+replication-state.service.ts:382 ⏱️ [ReplicationStateService] Step 3/4: Switching to secondary server...
+replication-failover.service.ts:79 🛑 [Failover] Stopping all replications...
+database.service.ts:492 All GraphQL replications stopped
+replication-failover.service.ts:82 ✅ [Failover] All replications stopped
+database.service.ts:512 🔄 [DatabaseService] Restarting replications with URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:111 🔄 [BaseReplicationService] Setting replication URLs: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+[ReplicationStateService] Replication status update: {
+    "statuses": [
+        {
+            "collectionName": "txn",
+            "isActive": false,
+            "isConnected": false,
+            "currentUrl": "http://localhost:3001/graphql"
+        },
+        {
+            "collectionName": "device_monitoring",
+            "isActive": false,
+            "isConnected": false,
+            "currentUrl": "http://localhost:3001/graphql"
+        },
+        {
+            "collectionName": "device_monitoring_history",
+            "isActive": false,
+            "isConnected": false,
+            "currentUrl": "http://localhost:3001/graphql"
+        }
+    ],
+    "allPrimaryInactive": true,
+    "primaryServerStatuses": 0
+}
+base-replication.service.ts:411 Replication txn-graphql-replication registration timeo
+🔄 [BaseReplicationService] Using override URLs for txn: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+[applyWebSocketMonitoring] txn: wsOptions.on already exists
+database.service.ts:594 ✅ [DatabaseService] Replication restarted for txn
+base-replication.service.ts:411 Replication device-monitoring-graphql-replication registration timeout
+🔄 [BaseReplicationService] Using override URLs for device_monitoring: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}
+base-replication.service.ts:134 [applyWebSocketMonitoring] device_monitoring: wsOptions.on already exists
+database.service.ts:594 ✅ [DatabaseService] Replication restarted for device_monitoring
+base-replication.service.ts:411 Replication device-monitoring-history-graphql-replication registration timeout
+🔄 [BaseReplicationService] Using override URLs for device_monitoring_history: {http: 'http://localhost:3001/graphql', ws: 'ws://localhost:3001/graphql'}http: "http://localhost:3001/graphql"ws: "ws://localhost:3001/graphql"[[Prototype]]: Object
+base-replication.service.ts:134 [applyWebSocketMonitoring] device_monitoring_history: wsOptions.on already exists
+database.service.ts:594 ✅ [DatabaseService] Replication restarted for device_monitoring_history
+database.service.ts:618 🚀 [DatabaseService] All replications start results: [
+    {
+        "collectionName": "txn",
+        "success": true
+    },
+    {
+        "collectionName": "device_monitoring",
+        "success": true
+    },
+    {
+        "collectionName": "device_monitoring_history",
+        "success": true
+    }
+]
+✅ [DatabaseService] Replication restart completed: 3 succeeded, 0 failed
+database.service.ts:635 🎉 [DatabaseService] All replications successfully restarted with new URLs
+replication-state.service.ts:388 ⏱️ [ReplicationStateService] Step 4/4: Updating failover state...
+replication-state.service.ts:400 🎉 [ReplicationStateService] Fallback failover completed
+📡 [FailoverEventService] Event emitted: {
+    "id": "event_1762273809287_wsmqkn6sq",
+    "type": "connection_restored",
+    "source": "txn",
+    "timestamp": 1762273809287,
+    "data": {
+        "previousRetryCount": 6,
+        "url": "http://localhost:3001/graphql"
+    },
+    "severity": "low"
+}
+[FailoverEventService] Failover decision made: {
+    "shouldFailover": true,
+    "reason": "High retry counts detected (1 events); Critical events detected (1 events)",
+    "confidence": 0.7,
+    "contributingEvents": [
+        {
+            "id": "event_1762273790540_844291xwu",
+            "type": "connection_failure",
+            "source": "txn",
+            "timestamp": 1762273790540,
+            "data": {
+                "retryCount": 6,
+                "errorCode": 1006,
+                "errorReason": "",
+                "url": "http://localhost:10102/graphql"
+            },
+            "severity": "critical"
+        }
+    ],
+    "timestamp": 1762273809287
+}
+[FailoverMonitoringService] INFO: Failover Information - connection_restored from txn: {"previousRetryCount":6,"url":"http://localhost:3001/graphql"} 
+{
+    "id": "event_1762273809287_wsmqkn6sq",
+    "type": "connection_restored",
+    "source": "txn",
+    "timestamp": 1762273809287,
+    "data": {
+        "previousRetryCount": 6,
+        "url": "http://localhost:3001/graphql"
+    },
+    "severity": "low"
+}
+WebSocket connected to SECONDARY server (already connected, skipping append)
+{
+    "__zone_symbol__errorfalse": [
+        {
+            "type": "eventTask",
+            "state": "scheduled",
+            "source": "WebSocket.addEventListener:error",
+            "zone": "angular",
+            "runCount": 0
+        }
+    ],
+    "__zone_symbol__closefalse": [
+        {
+            "type": "eventTask",
+            "state": "scheduled",
+            "source": "WebSocket.addEventListener:close",
+            "zone": "angular",
+            "runCount": 0
+        }
+    ],
+    "__zone_symbol__openfalse": [
+        {
+            "type": "eventTask",
+            "state": "scheduled",
+            "source": "WebSocket.addEventListener:open",
+            "zone": "angular",
+            "runCount": 1
+        }
+    ],
+    "__zone_symbol__messagefalse": [
+        {
+            "type": "eventTask",
+            "state": "scheduled",
+            "source": "WebSocket.addEventListener:message",
+            "zone": "angular",
+            "runCount": 21
+        }
+    ]
+}
+🔄 [TxnReplication] Connected while on secondary, will monitor device status for primary recovery...
+app.component.ts:187 📈 [AppComponent] Health Summary Changed: {overall: 'critical', replications: '0/3', server: 'secondary', alerts: 2, lastUpdate: '2025-11-04T16:30:11.322Z'}
+📊 [ReplicationStateService] Replication status update: {statuses: Array(3), allPrimaryInactive: true, primaryServerStatuses: 0}
+replication-state.service.ts:405 📊 [ReplicationStateService] Post-failover replication status: {
+    "active": 0,
+    "total": 3,
+    "statuses": [
+        {
+            "collection": "txn",
+            "active": false,
+            "connected": true,
+            "url": "http://localhost:3001/graphql"
+        },
+        {
+            "collection": "device_monitoring",
+            "active": false,
+            "connected": false,
+            "url": "http://localhost:3001/graphql"
+        },
+        {
+            "collection": "device_monitoring_history",
+            "active": false,
+            "connected": false,
+            "url": "http://localhost:3001/graphql"
+        }
+    ]
+}
+
+🚨 [AppComponent] Failover decision received: {
+    "shouldFailover": true,
+    "reason": "High retry counts detected (1 events); Critical events detected (1 events)",
+    "confidence": 0.7,
+    "contributingEvents": [
+        {
+            "id": "event_1762273790540_844291xwu",
+            "type": "connection_failure",
+            "source": "txn",
+            "timestamp": 1762273790540,
+            "data": {
+                "retryCount": 6,
+                "errorCode": 1006,
+                "errorReason": "",
+                "url": "http://localhost:10102/graphql"
+            },
+            "severity": "critical"
+        }
+    ],
+    "timestamp": 1762273809287
+}
+⚠️ [ReplicationStateService] Failover already in progress, skipping
+

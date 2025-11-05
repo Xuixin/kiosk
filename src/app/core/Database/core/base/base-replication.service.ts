@@ -416,6 +416,9 @@ export abstract class BaseReplicationService<T = any> {
     this.replicationIdentifier = identifier;
     this._isRegistering = true;
 
+    const startTime = Date.now();
+    console.log(`⏱️ [${identifier}] Registration started...`);
+
     try {
       if (!this.collectionName) {
         const match = identifier.match(/^([^-]+)-/);
@@ -425,28 +428,45 @@ export abstract class BaseReplicationService<T = any> {
       }
 
       if (!this.networkStatus.isOnline()) {
+        console.log(`⚠️ [${identifier}] Offline, skipping registration`);
         return undefined;
       }
 
       if (this.collectionName && this.adapterProvider.isReady()) {
         try {
+          console.log(`🔧 [${identifier}] Setting up via adapter...`);
           await this.setupReplicationViaAdapter();
+          console.log(
+            `✅ [${identifier}] Registration completed via adapter in ${Date.now() - startTime}ms`,
+          );
           return this.replicationState;
         } catch (error: any) {
           console.warn(
             `Adapter replication failed for ${this.collectionName}:`,
             error?.message || error,
           );
+          console.log(`🔧 [${identifier}] Falling back to direct setup...`);
           const result = await this.setupReplicationDirect(collection);
           this._isRegistering = false;
+          console.log(
+            `✅ [${identifier}] Registration completed via direct in ${Date.now() - startTime}ms`,
+          );
           return result;
         }
       }
 
+      console.log(`🔧 [${identifier}] Setting up via direct...`);
       const result = await this.setupReplicationDirect(collection);
       this._isRegistering = false;
+      console.log(
+        `✅ [${identifier}] Registration completed via direct in ${Date.now() - startTime}ms`,
+      );
       return result;
     } catch (error) {
+      console.error(
+        `❌ [${identifier}] Registration failed after ${Date.now() - startTime}ms:`,
+        error,
+      );
       this._isRegistering = false;
       throw error;
     }

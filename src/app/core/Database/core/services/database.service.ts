@@ -591,8 +591,19 @@ export class DatabaseService {
             );
 
             if (replication) {
+              // Check replication state immediately after registration
+              const isActive = replication?.active$?.getValue?.() ?? false;
+              const currentUrls = (service as any)?.currentUrls;
+              const isConnected = (service as any)?.isConnected ?? false;
+
               console.log(
-                `✅ [DatabaseService] Replication restarted for ${collectionName}`,
+                `✅ [DatabaseService] Replication restarted for ${collectionName}:`,
+                {
+                  active: isActive,
+                  connected: isConnected,
+                  url: currentUrls?.http || 'unknown',
+                  hasReplication: !!replication,
+                },
               );
               return { collectionName, success: true };
             } else {
@@ -654,5 +665,201 @@ export class DatabaseService {
       .filter((status) => status === true);
 
     return statuses.length > 0;
+  }
+
+  /**
+   * Check if all replications are inactive
+   */
+  areAllReplicationsInactive(): boolean {
+    const services = Array.from(this.replicationServices.values());
+
+    for (const service of services) {
+      try {
+        const replicationState = (service as any)?.replicationState;
+        const isActive = replicationState?.active$?.getValue?.() ?? false;
+
+        if (isActive) {
+          return false; // Found an active replication
+        }
+      } catch (error) {
+        console.warn('Error checking replication status:', error);
+        // Assume inactive if we can't check
+      }
+    }
+
+    return true; // All replications are inactive
+  }
+
+  /**
+   * Check if replications connected to specific URL are inactive
+   */
+  areReplicationsInactiveForUrl(urlPattern: string): boolean {
+    const services = Array.from(this.replicationServices.values());
+
+    for (const service of services) {
+      try {
+        const currentUrls = (service as any)?.currentUrls;
+        const replicationState = (service as any)?.replicationState;
+
+        // Check if this service is connected to the specified URL pattern
+        if (
+          currentUrls?.http?.includes(urlPattern) ||
+          (!currentUrls && urlPattern.includes('10102'))
+        ) {
+          const isActive = replicationState?.active$?.getValue?.() ?? false;
+
+          if (isActive) {
+            return false; // Found an active replication for this URL
+          }
+        }
+      } catch (error) {
+        console.warn('Error checking replication status for URL:', error);
+      }
+    }
+
+    return true; // All replications for this URL are inactive
+  }
+
+  /**
+   * Wait for all replications to become inactive with timeout
+   */
+  async waitForReplicationsInactive(
+    timeoutMs: number = 30000,
+    urlPattern?: string,
+  ): Promise<boolean> {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+
+      const checkInterval = setInterval(() => {
+        const allInactive = urlPattern
+          ? this.areReplicationsInactiveForUrl(urlPattern)
+          : this.areAllReplicationsInactive();
+
+        if (allInactive) {
+          clearInterval(checkInterval);
+          console.log('✅ [DatabaseService] All replications are now inactive');
+          resolve(true);
+          return;
+        }
+
+        if (Date.now() - startTime > timeoutMs) {
+          clearInterval(checkInterval);
+          console.warn(
+            '⚠️ [DatabaseService] Timeout waiting for replications to become inactive',
+          );
+          resolve(false);
+          return;
+        }
+      }, 1000); // Check every second
+    });
+  }
+
+  /**
+   * Get detailed replication status for monitoring
+   */
+  getDetailedReplicationStatus(): Array<{
+    collectionName: string;
+    isActive: boolean;
+    currentUrl?: string;
+    isConnected?: boolean;
+    error?: string;
+  }> {
+    const statuses: Array<{
+      collectionName: string;
+      isActive: boolean;
+      currentUrl?: string;
+      isConnected?: boolean;
+      error?: string;
+    }> = [];
+
+    this.replicationServices.forEach((service, collectionName) => {
+      try {
+        const replicationState = (service as any)?.replicationState;
+        const currentUrls = (service as any)?.currentUrls;
+        const isConnected = (service as any)?.isConnected;
+
+        const isActive = replicationState?.active$?.getValue?.() ?? false;
+
+        statuses.push({
+          collectionName,
+          isActive,
+          currentUrl: currentUrls?.http || 'unknown',
+          isConnected: isConnected ?? false,
+        });
+      } catch (error) {
+        statuses.push({
+          collectionName,
+          isActive: false,
+          currentUrl: 'error',
+          isConnected: false,
+          error: (error as Error)?.message || 'Unknown error',
+        });
+      }
+    });
+
+    return statuses;
+  }
+
+  /**
+   * Force stop all replications (emergency shutdown)
+   */
+  async forceStopAllReplications(): Promise<void> {
+    console.log('🚨 [DatabaseService] Force stopping all replications...');
+
+    const stopPromises = Array.from(this.replicationServices.values()).map(
+      async (service) => {
+        try {
+          if (
+            service &&
+            typeof (service as any).stopReplication === 'function'
+          ) {
+            await (service as any).stopReplication();
+          }
+        } catch (error) {
+          console.error(
+            'Error force stopping replication:',
+            (error as Error)?.message || error,
+          );
+        }
+      },
+    );
+
+    await Promise.allSettled(stopPromises);
+    console.log('🛑 [DatabaseService] Force stop completed');
+  }
+
+  /**
+   * Graceful shutdown with coordination
+   */
+  async gracefulShutdown(timeoutMs: number = 30000): Promise<boolean> {
+    console.log('🔄 [DatabaseService] Starting graceful shutdown...');
+
+    try {
+      // First, try to stop all replications normally
+      await this.stopReplication();
+
+      // Wait for them to become inactive
+      const success = await this.waitForReplicationsInactive(timeoutMs);
+
+      if (!success) {
+        console.warn(
+          '⚠️ [DatabaseService] Graceful shutdown timeout, forcing stop...',
+        );
+        await this.forceStopAllReplications();
+        return false;
+      }
+
+      console.log(
+        '✅ [DatabaseService] Graceful shutdown completed successfully',
+      );
+      return true;
+    } catch (error) {
+      console.error(
+        '❌ [DatabaseService] Error during graceful shutdown:',
+        error,
+      );
+      await this.forceStopAllReplications();
+      return false;
+    }
   }
 }

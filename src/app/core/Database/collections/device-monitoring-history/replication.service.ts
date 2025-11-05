@@ -18,6 +18,7 @@ import {
 } from '../../core/config/replication-config-builder';
 import { ReplicationFailoverService } from '../../core/services/replication-failover.service';
 import { environment } from 'src/environments/environment';
+import { FailoverEventService } from '../../../centerlize/failover-event.service';
 
 /**
  * DeviceMonitoringHistory-specific GraphQL replication service
@@ -35,6 +36,7 @@ export class DeviceMonitoringHistoryReplicationService extends BaseReplicationSe
     networkStatus: NetworkStatusService,
     private readonly identity: ClientIdentityService,
     private readonly failoverService: ReplicationFailoverService,
+    private readonly failoverEventService: FailoverEventService,
   ) {
     super(networkStatus);
     this.collectionName = 'device_monitoring_history';
@@ -155,6 +157,23 @@ export class DeviceMonitoringHistoryReplicationService extends BaseReplicationSe
             console.log(
               `WebSocket closed (DeviceMonitoringHistory): code ${eventCode}, retryCount: ${this.wsRetryCount}`,
             );
+
+            // Emit connection failure event for centralized coordination
+            if (this.wsRetryCount >= 3) {
+              // Lower threshold for device monitoring history
+              const currentUrl = this.currentUrls?.http || environment.apiUrl;
+              this.failoverEventService.emitEvent(
+                'connection_failure',
+                'device_monitoring_history',
+                {
+                  retryCount: this.wsRetryCount,
+                  errorCode: event.code,
+                  errorReason: event.reason,
+                  url: currentUrl,
+                },
+                this.wsRetryCount >= 6 ? 'high' : 'medium',
+              );
+            }
           } else {
             this.wsRetryCount = 0;
             console.log(
@@ -163,8 +182,24 @@ export class DeviceMonitoringHistoryReplicationService extends BaseReplicationSe
           }
         },
         connected: async (event: any) => {
+          const previousRetryCount = this.wsRetryCount;
           this.isConnected = true;
           this.wsRetryCount = 0;
+
+          // Emit connection restored event if we had previous failures
+          if (previousRetryCount > 0) {
+            const currentUrl = this.currentUrls?.http || environment.apiUrl;
+            this.failoverEventService.emitEvent(
+              'connection_restored',
+              'device_monitoring_history',
+              {
+                previousRetryCount,
+                url: currentUrl,
+              },
+              'low',
+            );
+          }
+
           console.log('WebSocket connected (DeviceMonitoringHistory):', event);
         },
         error: (error: any) => {
@@ -290,9 +325,22 @@ export class DeviceMonitoringHistoryReplicationService extends BaseReplicationSe
 
         if (matchesDeviceId && matchesMetaData && matchesCreatedBy) {
           console.log(
-            '✅ [DeviceMonitoringHistory] Primary recovery conditions met! Switching to primary server...',
+            '✅ [DeviceMonitoringHistory] Primary recovery conditions met! Emitting server up event...',
           );
-          await this.failoverService.switchToPrimary();
+
+          // Emit server up event instead of direct failover
+          this.failoverEventService.emitEvent(
+            'server_up',
+            'device_monitoring_history',
+            {
+              device_id: doc.device_id,
+              meta_data: doc.meta_data,
+              created_by: doc.created_by,
+              recovery_detected: true,
+            },
+            'high',
+          );
+
           return; // Exit after first match
         }
       }
