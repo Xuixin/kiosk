@@ -2,6 +2,7 @@ import { Injectable, inject, OnDestroy } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { RxCollection } from 'rxdb';
 import { DatabaseService } from './database.service';
+import { COLLECTION_NAME_MAP } from '../replication/constants/replication.constants';
 
 /**
  * Base class for all facade services in newDatabase architecture
@@ -55,13 +56,8 @@ export abstract class BaseFacadeService<T = any> implements OnDestroy {
       }
 
       const collectionName = this.getCollectionName();
-      const collectionMap: Record<string, string> = {
-        transaction: 'transaction',
-        devicemonitoring: 'devicemonitoring',
-        devicemonitoringhistory: 'devicemonitoringhistory',
-      };
-
-      const dbCollectionName = collectionMap[collectionName.toLowerCase()];
+      const dbCollectionName =
+        COLLECTION_NAME_MAP[collectionName.toLowerCase()];
       if (!dbCollectionName) {
         console.warn(
           `Unknown collection name: ${collectionName}, returning null`,

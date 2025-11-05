@@ -26,9 +26,6 @@ export class DatabaseService {
   private _initializing = false; // Prevent concurrent initialization
   private _initializationPromise: Promise<void> | null = null; // Track ongoing initialization
 
-  // Event emitter for primary recovery
-  private primaryRecoveryListeners: Set<() => void | Promise<void>> = new Set();
-
   /**
    * Set replication monitor service (called after initialization to avoid circular dependency)
    */
@@ -145,10 +142,22 @@ export class DatabaseService {
       console.log('✅ [NewDatabase] Database and collections initialized');
 
       // Initialize replications only if not already initialized
+      // Replications initialization may fail in offline mode, but that's OK
+      // Database will still work in offline mode
       if (this.replicationManager.getAllReplicationStates().size === 0) {
-        await this.replicationManager.initializeReplications(this.db, () =>
-          this.emitPrimaryRecoveryEvent(),
-        );
+        try {
+          await this.replicationManager.initializeReplications(this.db);
+        } catch (replicationError: any) {
+          // Don't fail database initialization if replications fail
+          // This allows offline-first operation
+          console.warn(
+            '⚠️ [NewDatabase] Replication initialization failed (may be offline):',
+            replicationError.message,
+          );
+          console.log(
+            '💡 [NewDatabase] Database is ready for offline operation. Replications will be initialized when connection is restored.',
+          );
+        }
       } else {
         console.log(
           `✅ [NewDatabase] Replications already initialized (${this.replicationManager.getAllReplicationStates().size} states)`,
@@ -245,37 +254,15 @@ export class DatabaseService {
     if (!this.db) {
       throw new Error('Database must be initialized first');
     }
-    return this.replicationManager.reinitializeReplications(this.db, () =>
-      this.emitPrimaryRecoveryEvent(),
-    );
+    return this.replicationManager.reinitializeReplications(this.db);
   }
 
   /**
    * Subscribe to primary recovery events
    * Called when primary server is detected as ONLINE while using secondary
+   * Delegates to ReplicationManagerService
    */
   onPrimaryRecovery(callback: () => void | Promise<void>): () => void {
-    this.primaryRecoveryListeners.add(callback);
-    // Return unsubscribe function
-    return () => {
-      this.primaryRecoveryListeners.delete(callback);
-    };
-  }
-
-  /**
-   * Emit primary recovery event
-   * All registered listeners will be called
-   */
-  private async emitPrimaryRecoveryEvent(): Promise<void> {
-    console.log(
-      `📢 [DatabaseService] Emitting primary recovery event to ${this.primaryRecoveryListeners.size} listener(s)`,
-    );
-
-    const promises = Array.from(this.primaryRecoveryListeners).map((callback) =>
-      Promise.resolve(callback()),
-    );
-
-    await Promise.all(promises);
-    console.log('✅ [DatabaseService] Primary recovery event handled');
+    return this.replicationManager.onPrimaryRecovery(callback);
   }
 }

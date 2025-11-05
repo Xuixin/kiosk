@@ -72,3 +72,11 @@ export const COLLECTION_NAMES = [
   'devicemonitoring',
   'devicemonitoringhistory',
 ] as const;
+
+// Collection name mapping (for facade services)
+// Maps collection name to database collection key
+export const COLLECTION_NAME_MAP: Record<string, string> = {
+  transaction: 'transaction',
+  devicemonitoring: 'devicemonitoring',
+  devicemonitoringhistory: 'devicemonitoringhistory',
+} as const;

@@ -220,14 +220,7 @@ export class ReplicationStateMonitorService {
     const replications: ReplicationStateInfo[] = [];
 
     // Get all 6 replication identifiers
-    const identifiers = [
-      'txn-primary-10102',
-      'txn-secondary-3001',
-      'device_monitoring-primary-10102',
-      'device_monitoring-secondary-3001',
-      'device_monitoring_history-primary-10102',
-      'device_monitoring_history-secondary-3001',
-    ];
+    const identifiers = REPLICATION_IDENTIFIERS;
 
     for (const identifier of identifiers) {
       const info = this.getReplicationState(identifier);

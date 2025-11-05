@@ -17,6 +17,7 @@ import {
   isPrimaryIdentifier,
   isSecondaryIdentifier,
 } from '../utils/replication.utils';
+import { checkGraphQLConnection } from '../utils/connection.utils';
 import { createReplicationConfigs } from '../config/replication.configs';
 import {
   setupCollectionReplication,
@@ -40,6 +41,9 @@ export class ReplicationManagerService {
   // Optional: ReplicationStateMonitorService (inject lazily to avoid circular dependency)
   private replicationMonitorService: any = null;
 
+  // Event emitter for primary recovery
+  private primaryRecoveryListeners: Set<() => void | Promise<void>> = new Set();
+
   /**
    * Set replication monitor service (called after initialization to avoid circular dependency)
    */
@@ -58,42 +62,10 @@ export class ReplicationManagerService {
 
   /**
    * Check connection to GraphQL server
+   * Uses shared connection utility
    */
   private async checkConnection(url: string): Promise<boolean> {
-    try {
-      console.log(
-        `🔍 [ReplicationManager] Checking connection to server: ${url}`,
-      );
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout 5 seconds
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: '{ __typename }', // Simple introspection query
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        console.log(
-          `✅ [ReplicationManager] Connection to GraphQL server successful: ${url}`,
-        );
-        return true;
-      } else {
-        console.warn(
-          `⚠️ [ReplicationManager] GraphQL server responded with error: ${response.status} (${url})`,
-        );
-        return false;
-      }
-    } catch (error: any) {
-      return false;
-    }
+    return checkGraphQLConnection(url);
   }
 
   /**
@@ -101,7 +73,7 @@ export class ReplicationManagerService {
    */
   async initializeReplications(
     db: RxDatabase<DatabaseCollections>,
-    emitPrimaryRecovery: () => Promise<void>,
+    emitPrimaryRecovery?: () => Promise<void>,
   ): Promise<void> {
     if (!db) {
       throw new Error('Database must be initialized first');
@@ -109,6 +81,7 @@ export class ReplicationManagerService {
 
     const primaryAvailable = await this.checkConnection(environment.apiUrl);
     let useSecondary = false;
+    let isOffline = false;
 
     if (!primaryAvailable) {
       // Check secondary server availability
@@ -116,37 +89,49 @@ export class ReplicationManagerService {
       const secondaryAvailable = await this.checkConnection(secondaryUrl);
 
       if (!secondaryAvailable) {
-        console.error(
-          '❌ [ReplicationManager] Both primary and secondary servers are unavailable!',
+        // Offline mode: Both servers unavailable
+        // Don't throw error - allow offline-first operation
+        console.warn(
+          '⚠️ [ReplicationManager] Both primary and secondary servers are unavailable. Operating in offline mode.',
         );
-        throw new Error(
-          'Cannot connect to any GraphQL server. Please check server availability.',
-        );
+        isOffline = true;
+        // Set global flag to indicate offline mode
+        (window as any).__USE_SECONDARY_SERVER__ = false;
+        (window as any).__IS_OFFLINE_MODE__ = true;
+      } else {
+        useSecondary = true;
+        // Set global flag for other services to use
+        (window as any).__USE_SECONDARY_SERVER__ = true;
+        (window as any).__IS_OFFLINE_MODE__ = false;
       }
-
-      useSecondary = true;
-      // Set global flag for other services to use
-      (window as any).__USE_SECONDARY_SERVER__ = true;
     } else {
       // Primary is available, clear the flag
       (window as any).__USE_SECONDARY_SERVER__ = false;
+      (window as any).__IS_OFFLINE_MODE__ = false;
     }
 
     const serverId =
       (await this.identity.getClientId()) || environment.serverId;
 
     // Create replication configs using the config factory
+    // Use internal emitPrimaryRecoveryEvent if no external handler provided
+    const emitRecovery =
+      emitPrimaryRecovery || (() => this.emitPrimaryRecoveryEvent());
     const replicationConfigs = createReplicationConfigs(
       db,
       serverId,
-      emitPrimaryRecovery,
+      emitRecovery,
     );
 
     // Initialize all replications
     for (const config of replicationConfigs) {
       try {
         // Set autoStart based on which server we're using
-        if (useSecondary) {
+        if (isOffline) {
+          // Offline mode: Disable autoStart for all replications
+          // They can be started manually when connection is restored
+          config.autoStart = false;
+        } else if (useSecondary) {
           // Using secondary server - enable secondary replications, disable primary
           config.autoStart = isSecondaryIdentifier(
             config.replicationIdentifier,
@@ -178,7 +163,14 @@ export class ReplicationManagerService {
 
     // Replications with autoStart: true will start automatically
     // No need to manually call startSecondary() or startPrimary()
-    if (useSecondary) {
+    if (isOffline) {
+      console.log(
+        '⚠️ [ReplicationManager] Operating in offline mode - all replications initialized with autoStart: false',
+      );
+      console.log(
+        '💡 [ReplicationManager] Replications will be started automatically when connection is restored',
+      );
+    } else if (useSecondary) {
       console.log(
         '✅ [ReplicationManager] Secondary replications initialized with autoStart: true',
       );
@@ -402,7 +394,7 @@ export class ReplicationManagerService {
    */
   async reinitializeReplications(
     db: RxDatabase<DatabaseCollections>,
-    emitPrimaryRecovery: () => Promise<void>,
+    emitPrimaryRecovery?: () => Promise<void>,
   ): Promise<void> {
     if (!db) {
       throw new Error('Database must be initialized first');
@@ -419,5 +411,34 @@ export class ReplicationManagerService {
     // Reinitialize using the same logic as initial setup
     await this.initializeReplications(db, emitPrimaryRecovery);
     console.log('✅ [ReplicationManager] Replications reinitialized');
+  }
+
+  /**
+   * Subscribe to primary recovery events
+   * Called when primary server is detected as ONLINE while using secondary
+   */
+  onPrimaryRecovery(callback: () => void | Promise<void>): () => void {
+    this.primaryRecoveryListeners.add(callback);
+    // Return unsubscribe function
+    return () => {
+      this.primaryRecoveryListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Emit primary recovery event
+   * All registered listeners will be called
+   */
+  async emitPrimaryRecoveryEvent(): Promise<void> {
+    console.log(
+      `📢 [ReplicationManager] Emitting primary recovery event to ${this.primaryRecoveryListeners.size} listener(s)`,
+    );
+
+    const promises = Array.from(this.primaryRecoveryListeners).map((callback) =>
+      Promise.resolve(callback()),
+    );
+
+    await Promise.all(promises);
+    console.log('✅ [ReplicationManager] Primary recovery event handled');
   }
 }

@@ -3,6 +3,7 @@ import { Subscription, distinctUntilChanged, filter } from 'rxjs';
 import { NetworkStatusService } from './network-status.service';
 import { DatabaseService } from './database.service';
 import { environment } from 'src/environments/environment';
+import { checkGraphQLConnection } from '../replication/utils/connection.utils';
 
 /**
  * Client Health Service
@@ -208,24 +209,10 @@ export class ClientHealthService implements OnDestroy {
 
   /**
    * Check if server is reachable
+   * Uses shared connection utility
    */
   private async checkServer(url: string): Promise<boolean> {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: '{ __typename }' }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch {
-      return false;
-    }
+    return checkGraphQLConnection(url);
   }
 
   ngOnDestroy(): void {
