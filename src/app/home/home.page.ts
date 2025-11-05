@@ -5,15 +5,18 @@ import {
   ChangeDetectorRef,
   inject,
   computed,
-  effect,
 } from '@angular/core';
 import { FlowControllerService } from '../flow-services/flow-controller.service';
-import { TransactionService } from '../core/Database/collections/txn';
+import { TransactionService } from '../core/Database/collection/txn/facade.service';
 import {
   REGISTRY_WALKIN_WORKFLOW,
   REGISTRY_INITIAL_CONTEXT,
 } from '../workflow/registry-workflow';
-import { DatabaseService } from '../core/Database/core/services/database.service';
+import { ClientIdentityService } from '../services/client-identity.service';
+import { ReplicationStateMonitorService } from '../core/Database/replication/services/replication-state-monitor.service';
+import { Subscription } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { DatabaseService } from '../core/Database/services/database.service';
 
 @Component({
   selector: 'app-home',
@@ -24,18 +27,29 @@ import { DatabaseService } from '../core/Database/core/services/database.service
 export class HomePage implements OnInit, OnDestroy {
   currentDate = new Date();
   currentTime = new Date();
+  clientName: string = '';
 
   // Inject services
   private readonly flowController = inject(FlowControllerService);
   private readonly transactionService = inject(TransactionService);
+  private readonly databaseService = inject(DatabaseService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly identityService = inject(ClientIdentityService);
+  private readonly replicationMonitor = inject(ReplicationStateMonitorService);
 
   // Computed properties for template
   public readonly inCount = computed(() => this.transactionService.stats().in);
 
-  private timeInterval?: any;
+  // Replication states
+  public readonly replicationStates = toSignal(
+    this.replicationMonitor.getStateObservable(),
+    { initialValue: this.replicationMonitor.getAllReplicationsState() },
+  );
 
-  constructor(private dbService: DatabaseService) {
+  private timeInterval?: any;
+  private replicationSubscription?: Subscription;
+
+  constructor() {
     console.log('HomePage constructor');
 
     this.timeInterval = setInterval(() => {
@@ -45,17 +59,31 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    // Load client name
+    const name = await this.identityService.getClientName();
+    this.clientName = name || 'ไม่ระบุชื่อ';
+
     // Load initial transaction data
     try {
       await this.transactionService.findAll();
     } catch (error) {
       console.error('❌ Error loading transactions on HomePage init:', error);
     }
+
+    // Subscribe to replication state updates
+    this.replicationSubscription = this.replicationMonitor
+      .getStateObservable()
+      .subscribe(() => {
+        this.cdr.detectChanges();
+      });
   }
 
   ngOnDestroy() {
     if (this.timeInterval) {
       clearInterval(this.timeInterval);
+    }
+    if (this.replicationSubscription) {
+      this.replicationSubscription.unsubscribe();
     }
   }
 
@@ -66,5 +94,10 @@ export class HomePage implements OnInit, OnDestroy {
       undefined,
       REGISTRY_INITIAL_CONTEXT,
     );
+  }
+
+  clickLog() {
+    const a = this.databaseService.getAllReplicationStates();
+    console.log(a.values());
   }
 }

@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DatabaseService } from 'src/app/core/Database/core/services/database.service';
-import { RxTxnDocumentType } from 'src/app/core/Database/collections/txn/schema';
+import { TransactionService } from 'src/app/core/Database/collection/txn/facade.service';
 
 export interface RegistryTransaction {
   id: string;
@@ -23,21 +22,13 @@ export interface SubmitResult {
   providedIn: 'root',
 })
 export class RegistryService {
-  constructor(private readonly dbService: DatabaseService) {}
+  constructor(private readonly transactionService: TransactionService) {}
 
   async submitRegistration(
     registry: RegistryTransaction,
   ): Promise<SubmitResult> {
     try {
-      const db = this.dbService.db;
-      if (!db) {
-        return {
-          success: false,
-          error: 'Database not initialized. Please wait and try again.',
-        };
-      }
-
-      await db.txn.insert({
+      await this.transactionService.create({
         id: registry.id,
         name: registry.name,
         id_card_base64: registry.id_card_base64,
@@ -46,7 +37,7 @@ export class RegistryService {
         door_permission: registry.door_permission,
         status: registry.status,
         client_created_at: registry.client_created_at,
-      } as unknown as RxTxnDocumentType);
+      });
 
       return {
         success: true,

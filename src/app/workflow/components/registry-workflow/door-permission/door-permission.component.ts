@@ -4,8 +4,8 @@ import { IonicModule } from '@ionic/angular';
 import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
-import { DeviceMonitoringDocument } from '../../../../core/Database/collections/device-monitoring/schema';
-import { DeviceMonitoringFacade } from 'src/app/core/Database/collections/device-monitoring';
+import { DeviceMonitoringDocument } from '../../../../core/Database/collection/device-monitoring/schema';
+import { DeviceMonitoringFacade } from 'src/app/core/Database/collection/device-monitoring/facade.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 interface DoorWithSelection extends DeviceMonitoringDocument {
@@ -42,10 +42,22 @@ export class DoorPermissionComponent extends BaseFlowController {
         const selectedIds = new Set(
           current.filter((d) => d.selected).map((d) => d.id),
         );
-        return incoming.map((door) => ({
-          ...door,
-          selected: selectedIds.has(door.id),
-        }));
+        return incoming.map(
+          (door): DoorWithSelection => ({
+            ...door,
+            selected: selectedIds.has(door.id),
+            meta_data: door.meta_data || '',
+            created_by: door.created_by || '',
+            server_created_at: door.server_created_at || '',
+            server_updated_at: door.server_updated_at || '',
+            cloud_created_at: door.cloud_created_at || '',
+            cloud_updated_at: door.cloud_updated_at || '',
+            client_created_at: door.client_created_at || '',
+            client_updated_at: door.client_updated_at || '',
+            diff_time_create: door.diff_time_create || '0',
+            diff_time_update: door.diff_time_update || '0',
+          }),
+        );
       });
     });
   }

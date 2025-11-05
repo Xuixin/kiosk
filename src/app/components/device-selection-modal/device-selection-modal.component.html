@@ -26,6 +26,16 @@
     <!-- Content -->
     <div class="flex-1 p-6 overflow-y-auto">
       <div class="max-w-4xl mx-auto">
+        <!-- Server Info Banner -->
+        @if (serverInfo()) {
+          <div
+            class="mb-4 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800"
+          >
+            <i class="pi pi-info-circle"></i>
+            <span class="text-sm font-medium">{{ serverInfo() }}</span>
+          </div>
+        }
+
         <!-- Loading State -->
         <div *ngIf="isLoading()" class="text-center py-8">
           <div

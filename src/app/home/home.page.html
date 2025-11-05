@@ -2,8 +2,6 @@
   <div
     class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex flex-col"
   >
- 
-
     <!-- Header Section -->
     <div class="bg-white shadow-md border-b-4 border-blue-600">
       <div class="container mx-auto px-8 py-6">
@@ -17,7 +15,7 @@
             </div>
             <div>
               <h1 class="text-3xl font-bold text-gray-800">
-                ระบบลงทะเบียนเข้าอาคาร
+                ระบบลงทะเบียนเข้าอาคาร [ {{clientName}} ]
               </h1>
               <p class="text-gray-500 text-lg">FassPass Registry</p>
             </div>
@@ -160,6 +158,8 @@
           </div>
         </div>
 
+        <button (click)="clickLog()">a</button>
+
         <!-- Help Section -->
         <div class="mt-12 text-center">
           <div
@@ -170,6 +170,99 @@
               >ต้องการความช่วยเหลือ? กรุณาติดต่อเจ้าหน้าที่ประจำจุด</span
             >
           </div>
+        </div>
+
+        <!-- Replication Status Section -->
+        <div class="mt-8 bg-white rounded-lg shadow-md p-6">
+          <h3 class="text-xl font-bold text-gray-800 mb-4">
+            <i class="pi pi-database mr-2"></i>
+            สถานะการเชื่อมต่อ (Replication Status)
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            @for (rep of replicationStates()?.replications; track
+            rep.identifier) {
+            <div
+              class="border rounded-lg p-4"
+              [class.bg-green-50]="rep.isActive && rep.isConnected"
+              [class.bg-yellow-50]="rep.isActive && !rep.isConnected"
+              [class.bg-gray-50]="!rep.isActive"
+              [class.border-green-500]="rep.isActive && rep.isConnected"
+              [class.border-yellow-500]="rep.isActive && !rep.isConnected"
+              [class.border-gray-300]="!rep.isActive"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <span class="font-semibold text-sm">{{ rep.collection }}</span>
+                <span
+                  class="px-2 py-1 rounded text-xs font-medium"
+                  [class.bg-blue-100]="rep.server === 'primary'"
+                  [class.text-blue-800]="rep.server === 'primary'"
+                  [class.bg-purple-100]="rep.server === 'secondary'"
+                  [class.text-purple-800]="rep.server === 'secondary'"
+                >
+                  {{ rep.server === 'primary' ? 'Primary' : 'Secondary' }}
+                </span>
+              </div>
+              <div class="space-y-1 text-xs">
+                <div class="flex items-center gap-2">
+                  <i
+                    class="pi"
+                    [class.pi-check-circle]="rep.isActive"
+                    [class.pi-times-circle]="!rep.isActive"
+                    [class.text-green-500]="rep.isActive"
+                    [class.text-gray-400]="!rep.isActive"
+                  ></i>
+                  <span
+                    [class.text-green-600]="rep.isActive"
+                    [class.text-gray-500]="!rep.isActive"
+                  >
+                    Active: {{ rep.isActive ? 'Yes' : 'No' }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <i
+                    class="pi"
+                    [class.pi-wifi]="rep.isConnected"
+                    [class.pi-wifi-off]="!rep.isConnected"
+                    [class.text-green-500]="rep.isConnected"
+                    [class.text-red-500]="!rep.isConnected"
+                  ></i>
+                  <span
+                    [class.text-green-600]="rep.isConnected"
+                    [class.text-red-600]="!rep.isConnected"
+                  >
+                    Connected: {{ rep.isConnected ? 'Yes' : 'No' }}
+                  </span>
+                </div>
+                @if (rep.isStopped) {
+                <div class="flex items-center gap-2">
+                  <i class="pi pi-stop-circle text-red-500"></i>
+                  <span class="text-red-600">Stopped</span>
+                </div>
+                } @if (rep.isPaused) {
+                <div class="flex items-center gap-2">
+                  <i class="pi pi-pause-circle text-yellow-500"></i>
+                  <span class="text-yellow-600">Paused</span>
+                </div>
+                }
+              </div>
+            </div>
+            }
+          </div>
+          @if (replicationStates()) {
+          <div class="mt-4 pt-4 border-t border-gray-200">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600">
+                Total Active: {{ replicationStates()?.totalActive }}/6
+              </span>
+              <span class="text-gray-600">
+                Total Connected: {{ replicationStates()?.totalConnected }}/6
+              </span>
+              <span class="text-gray-600">
+                Server: {{ replicationStates()?.currentServer }}
+              </span>
+            </div>
+          </div>
+          }
         </div>
       </div>
     </div>

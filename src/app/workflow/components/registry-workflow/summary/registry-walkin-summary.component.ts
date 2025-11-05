@@ -16,7 +16,7 @@ import { ButtonModule } from 'primeng/button';
 import { BaseFlowController } from '../../../base-flow-controller.component';
 import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
 import { RegistryService } from '../../../services/registry.service';
-import { DeviceMonitoringFacade } from 'src/app/core/Database/collections/device-monitoring';
+import { DeviceMonitoringFacade } from 'src/app/core/Database/collection/device-monitoring/facade.service';
 import { ModalsControllerService } from 'src/app/flow-services/modals-controller.service';
 import { ReceiptService } from './offline-receipt/receipt.service';
 import { DoorOfflineReceiptModal } from './offline-receipt/door-offline-receipt.modal';
@@ -328,7 +328,7 @@ export class RegistryWalkinSummaryComponent
       console.log(
         '[submitRegistration] Ensuring device monitoring facade is initialized...',
       );
-      await this.deviceMonitoringFacade.ensureInitialized();
+      this.deviceMonitoringFacade.ensureInitialized();
       console.log('[submitRegistration] Device monitoring facade initialized');
 
       console.log('[submitRegistration] Getting doors from facade...');
@@ -340,7 +340,24 @@ export class RegistryWalkinSummaryComponent
       );
 
       console.log('[submitRegistration] allDoors', allDoors);
-      const receiptData = this.receiptService.build(ctx, allDoors, cid);
+      // Cast to schema type to fix type mismatch
+      const receiptData = this.receiptService.build(
+        ctx,
+        allDoors.map((door) => ({
+          ...door,
+          meta_data: door.meta_data || '',
+          created_by: door.created_by || '',
+          server_created_at: door.server_created_at || '',
+          server_updated_at: door.server_updated_at || '',
+          cloud_created_at: door.cloud_created_at || '',
+          cloud_updated_at: door.cloud_updated_at || '',
+          client_created_at: door.client_created_at || '',
+          client_updated_at: door.client_updated_at || '',
+          diff_time_create: door.diff_time_create || '0',
+          diff_time_update: door.diff_time_update || '0',
+        })) as any,
+        cid,
+      );
 
       console.log('[submitRegistration] receiptData', receiptData);
       if (receiptData.offlineDoors.length > 0) {
@@ -430,7 +447,7 @@ export class RegistryWalkinSummaryComponent
       console.log(
         '🔍 [DEBUG] Ensuring device monitoring facade is initialized...',
       );
-      await this.deviceMonitoringFacade.ensureInitialized();
+      this.deviceMonitoringFacade.ensureInitialized();
       console.log('🔍 [DEBUG] Device monitoring facade initialized');
 
       // Get doors using the same method as submitRegistration

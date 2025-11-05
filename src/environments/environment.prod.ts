@@ -19,8 +19,8 @@ export const environment = {
   multiInstance: false,
   clientType: 'KIOSK',
   adapterType: 'rxdb' as const, // Database adapter type: 'rxdb' | 'pouchdb' | 'watermelon' | 'server'
-  serverName: 'server-มอ',
-  serverId: '111',
+  serverName: 'Mini server',
+  serverId: 'server-111',
   addRxDBPlugins() {
     addRxPlugin(RxDBCleanupPlugin);
     addRxPlugin(RxDBQueryBuilderPlugin);

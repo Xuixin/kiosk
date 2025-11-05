@@ -7,6 +7,7 @@ import { addRxPlugin } from 'rxdb';
 import { RxDBCleanupPlugin } from 'rxdb/plugins/cleanup';
 import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder';
 import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
+// import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode'; // Disabled - requires Ajv validator
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
 
@@ -21,7 +22,7 @@ export const environment = {
   clientType: 'KIOSK',
   adapterType: 'rxdb' as const, // Database adapter type: 'rxdb' | 'pouchdb' | 'watermelon' | 'server'
 
-  serverName: 'server-มอ',
+  serverName: 'Mini server',
   serverId: 'server-111',
   addRxDBPlugins() {
     addRxPlugin(RxDBCleanupPlugin);

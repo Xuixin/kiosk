@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { DeviceMonitoringDocument } from 'src/app/core/Database/collections/device-monitoring/schema';
+import { DeviceMonitoringDocument } from 'src/app/core/Database/collection/device-monitoring/schema';
 
 export interface ReceiptViewModel {
   ticketId: string;

@@ -12,7 +12,7 @@ import {
   DeviceApiService,
   DeviceMonitoringDocument,
 } from 'src/app/core/api/graphql/device-api.service';
-import { ClientIdentityService } from 'src/app/core/identity/client-identity.service';
+import { ClientIdentityService } from 'src/app/services/client-identity.service';
 import { environment } from 'src/environments/environment';
 
 export type Device = Pick<
@@ -33,6 +33,7 @@ export class DeviceSelectionModalComponent implements OnInit {
   isLoading = signal<boolean>(true);
   error = signal<string>('');
   isInitializing = signal<boolean>(false);
+  serverInfo = signal<string>(''); // Show which server is being used
 
   constructor(
     private modalController: ModalController,
@@ -47,16 +48,16 @@ export class DeviceSelectionModalComponent implements OnInit {
 
   /**
    * Load devices from GraphQL API filtered by client type
+   * Automatically tries secondary server if primary fails
    */
   private async loadDevices() {
     try {
       this.isLoading.set(true);
       this.error.set('');
+      this.serverInfo.set('');
 
       const clientType = this.identityService.getClientType();
       console.log(`🔍 Loading devices for type: ${clientType}`);
-
-
 
       const devices = await this.deviceApiService.listDevicesByType(clientType);
 
@@ -77,6 +78,14 @@ export class DeviceSelectionModalComponent implements OnInit {
       }));
 
       this.devices.set(transformedDevices);
+
+      // Show server info if using secondary
+      if (this.deviceApiService.isUsingSecondaryServer()) {
+        this.serverInfo.set('⚠️ เชื่อมต่อผ่านเซิร์ฟเวอร์สำรอง');
+      } else {
+        this.serverInfo.set('');
+      }
+
       this.isLoading.set(false);
 
       console.log(
@@ -150,6 +159,9 @@ export class DeviceSelectionModalComponent implements OnInit {
       console.log(
         `✅ Device saved: ${selectedDevice.id} - ${selectedDevice.name}`,
       );
+
+      // Note: Database initialization will be handled by APP_INITIALIZER
+      // after modal dismisses with the selected device data
 
       // Dismiss loading
       if (loading) {
