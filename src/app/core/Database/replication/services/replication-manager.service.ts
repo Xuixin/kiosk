@@ -199,23 +199,42 @@ export class ReplicationManagerService {
   async startSecondary(): Promise<void> {
     console.log('🔄 [ReplicationManager] Starting secondary replications...');
 
+    // Check if replication states exist
+    if (this.replicationStates.size === 0) {
+      console.warn(
+        '⚠️ [ReplicationManager] No replication states found, cannot start secondary. Reinitialization needed.',
+      );
+      return;
+    }
+
     for (const identifier of SECONDARY_IDENTIFIERS) {
       const state = this.replicationStates.get(identifier);
       if (state) {
         try {
-          // Check if replication is already active
+          // Check if replication is already started
+          const wasStarted = (state as any).wasStarted ?? false;
           const isActive = (state as any).active$?.getValue?.() ?? false;
+
+          // Skip if already started and active
+          if (wasStarted && isActive) {
+            console.log(
+              `⏭️ [ReplicationManager] Secondary ${identifier} already started and active, skipping`,
+            );
+            continue;
+          }
 
           if (!isActive) {
             // If not active, start it first
             if (typeof (state as any).start === 'function') {
               await (state as any).start();
+              (state as any).wasStarted = true; // Mark as started
               console.log(
                 `✅ [ReplicationManager] Started secondary: ${identifier}`,
               );
             } else {
               // Fallback: use reSync if start() is not available
               state.reSync();
+              (state as any).wasStarted = true; // Mark as started
               console.log(
                 `✅ [ReplicationManager] Re-synced secondary: ${identifier}`,
               );
@@ -223,6 +242,7 @@ export class ReplicationManagerService {
           } else {
             // Already active, just re-sync
             state.reSync();
+            (state as any).wasStarted = true; // Mark as started
             console.log(
               `✅ [ReplicationManager] Re-synced active secondary: ${identifier}`,
             );
@@ -248,12 +268,40 @@ export class ReplicationManagerService {
   async startPrimary(): Promise<void> {
     console.log('🔄 [ReplicationManager] Starting primary replications...');
 
+    // Check if replication states exist
+    if (this.replicationStates.size === 0) {
+      console.warn(
+        '⚠️ [ReplicationManager] No replication states found, cannot start primary. Reinitialization needed.',
+      );
+      return;
+    }
+
     for (const identifier of PRIMARY_IDENTIFIERS) {
       const state = this.replicationStates.get(identifier);
       if (state) {
-        // Re-sync to start replication
-        state.reSync();
-        console.log(`✅ [ReplicationManager] Started primary: ${identifier}`);
+        try {
+          // Check if replication is already started
+          const wasStarted = (state as any).wasStarted ?? false;
+          const isActive = (state as any).active$?.getValue?.() ?? false;
+
+          // Skip if already started and active
+          if (wasStarted && isActive) {
+            console.log(
+              `⏭️ [ReplicationManager] Primary ${identifier} already started and active, skipping`,
+            );
+            continue;
+          }
+
+          // Re-sync to start replication
+          state.reSync();
+          (state as any).wasStarted = true; // Mark as started
+          console.log(`✅ [ReplicationManager] Started primary: ${identifier}`);
+        } catch (error: any) {
+          console.error(
+            `❌ [ReplicationManager] Error starting primary ${identifier}:`,
+            error.message,
+          );
+        }
       } else {
         console.log(
           `⚠️ [ReplicationManager] Primary replication not found: ${identifier}`,
@@ -270,6 +318,34 @@ export class ReplicationManagerService {
     console.log(
       '🔄 [ReplicationManager] Switching to secondary replications...',
     );
+
+    // Check if replication states exist
+    if (this.replicationStates.size === 0) {
+      console.warn(
+        '⚠️ [ReplicationManager] No replication states found, cannot switch to secondary. Reinitialization needed.',
+      );
+      return;
+    }
+
+    // Check if secondary replications are already active
+    let hasActiveSecondary = false;
+    for (const identifier of SECONDARY_IDENTIFIERS) {
+      const state = this.replicationStates.get(identifier);
+      if (state) {
+        const wasStarted = (state as any).wasStarted ?? false;
+        if (wasStarted) {
+          hasActiveSecondary = true;
+          break;
+        }
+      }
+    }
+
+    if (hasActiveSecondary) {
+      console.log(
+        '⏭️ [ReplicationManager] Secondary replications already active, skipping switch',
+      );
+      return;
+    }
 
     // Cancel all primary replications (only if they are active)
     await this.cancelPrimaryReplications();
@@ -290,6 +366,34 @@ export class ReplicationManagerService {
    */
   async switchToPrimary(): Promise<void> {
     console.log('🔄 [ReplicationManager] Switching to primary replications...');
+
+    // Check if replication states exist
+    if (this.replicationStates.size === 0) {
+      console.warn(
+        '⚠️ [ReplicationManager] No replication states found, cannot switch to primary. Reinitialization needed.',
+      );
+      return;
+    }
+
+    // Check if primary replications are already active
+    let hasActivePrimary = false;
+    for (const identifier of PRIMARY_IDENTIFIERS) {
+      const state = this.replicationStates.get(identifier);
+      if (state) {
+        const wasStarted = (state as any).wasStarted ?? false;
+        if (wasStarted) {
+          hasActivePrimary = true;
+          break;
+        }
+      }
+    }
+
+    if (hasActivePrimary) {
+      console.log(
+        '⏭️ [ReplicationManager] Primary replications already active, skipping switch',
+      );
+      return;
+    }
 
     // Cancel all secondary replications (only if they are active)
     await this.cancelSecondaryReplications();
@@ -320,6 +424,7 @@ export class ReplicationManagerService {
           const wasStarted = (state as any).wasStarted ?? false;
           if (wasStarted) {
             await state.cancel();
+            (state as any).wasStarted = false; // Mark as not started
             console.log(
               `✅ [ReplicationManager] Cancelled secondary: ${identifier}`,
             );
@@ -359,6 +464,7 @@ export class ReplicationManagerService {
           const wasStarted = (state as any).wasStarted ?? false;
           if (wasStarted) {
             await state.cancel();
+            (state as any).wasStarted = false; // Mark as not started
             console.log(
               `✅ [ReplicationManager] Cancelled primary: ${identifier}`,
             );
@@ -399,6 +505,70 @@ export class ReplicationManagerService {
   }
 
   /**
+   * Close WebSocket connection for a replication state
+   * RxDB replication state may not close websocket on cancel()
+   * Tries multiple methods to access and close the WebSocket
+   */
+  private async closeReplicationWebSocket(
+    state: RxGraphQLReplicationState<any, any>,
+    identifier: string,
+  ): Promise<void> {
+    try {
+      // Method 1: Try to access wsRef directly
+      const wsRef = (state as any).wsRef;
+      if (wsRef) {
+        const ws = wsRef.get?.() || wsRef;
+        if (ws && typeof ws.close === 'function') {
+          ws.close(1000, 'Replication cancelled');
+          console.log(
+            `🔌 [ReplicationManager] Closed WebSocket via wsRef for ${identifier}`,
+          );
+          return;
+        }
+      }
+
+      // Method 2: Try to access through graphQLState
+      const graphqlState = (state as any).graphQLState;
+      if (graphqlState) {
+        const wsUrl = state.url?.ws || (state as any).url?.ws;
+        if (wsUrl) {
+          // Try to get websocket from internal map and close it
+          const wsMap = (graphqlState as any).websocketByUrl;
+          if (wsMap && wsMap instanceof Map) {
+            const ws = wsMap.get(wsUrl);
+            if (ws && typeof ws.close === 'function') {
+              ws.close(1000, 'Replication cancelled');
+              wsMap.delete(wsUrl);
+              console.log(
+                `🔌 [ReplicationManager] Closed WebSocket via map for ${identifier}`,
+              );
+              return;
+            }
+          }
+        }
+      }
+
+      // Method 3: Try to access through pull stream
+      const pullState = (state as any).pullState;
+      if (pullState) {
+        const stream = pullState.stream;
+        if (stream && stream.close) {
+          stream.close();
+          console.log(
+            `🔌 [ReplicationManager] Closed stream for ${identifier}`,
+          );
+          return;
+        }
+      }
+    } catch (error: any) {
+      console.log(
+        `⚠️ [ReplicationManager] Error closing WebSocket for ${identifier}:`,
+        error.message,
+      );
+    }
+  }
+
+  /**
    * Stop all replications gracefully without throwing errors
    * Used when both servers are down - stops all replications without clearing states
    * This allows replications to be restarted manually when servers are available
@@ -422,6 +592,9 @@ export class ReplicationManagerService {
         const wasStarted = (state as any).wasStarted ?? false;
         if (wasStarted) {
           await state.cancel();
+          // Close WebSocket explicitly
+          await this.closeReplicationWebSocket(state, identifier);
+          (state as any).wasStarted = false; // Mark as not started
           console.log(
             `✅ [ReplicationManager] Cancelled replication: ${identifier}`,
           );
@@ -463,6 +636,9 @@ export class ReplicationManagerService {
         const wasStarted = (state as any).wasStarted ?? false;
         if (wasStarted) {
           await state.cancel();
+          // Close WebSocket explicitly
+          await this.closeReplicationWebSocket(state, identifier);
+          (state as any).wasStarted = false; // Mark as not started
           console.log(
             `✅ [ReplicationManager] Cancelled replication: ${identifier}`,
           );
@@ -480,11 +656,9 @@ export class ReplicationManagerService {
       }
     }
 
-    // Clear replication states map
     this.replicationStates.clear();
     console.log('✅ [ReplicationManager] All replications stopped');
 
-    // Notify replication monitor about state changes
     this.notifyReplicationMonitor();
   }
 

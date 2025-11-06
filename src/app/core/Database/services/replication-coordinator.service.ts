@@ -28,6 +28,7 @@ export class ReplicationCoordinatorService {
   private _isProcessing = false; // Prevent concurrent operations
   private _lastOperation: 'start' | 'stop' | 'switch' | null = null;
   private _replicationsStopped = false; // Track if replications were stopped due to both servers down
+  private _currentServer: 'primary' | 'secondary' | null = null; // Track which server is currently active
 
   // Expose state for components to subscribe
   private _replicationsStopped$ = new BehaviorSubject<boolean>(false);
@@ -39,6 +40,13 @@ export class ReplicationCoordinatorService {
    */
   isReplicationsStopped(): boolean {
     return this._replicationsStopped;
+  }
+
+  /**
+   * Get current server being used
+   */
+  getCurrentServer(): 'primary' | 'secondary' | null {
+    return this._currentServer;
   }
 
   /**
@@ -69,6 +77,7 @@ export class ReplicationCoordinatorService {
       }
 
       await this.databaseService.stopAllReplicationsGracefully();
+      this._currentServer = null; // Clear current server when stopped
       console.log(
         '✅ [ReplicationCoordinator] All replications stopped (offline)',
       );
@@ -110,6 +119,17 @@ export class ReplicationCoordinatorService {
       }
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Ensure replications are initialized before proceeding
+      await this.ensureReplicationsInitialized();
+
+      // Check if already using a server - skip if already active
+      if (this._currentServer !== null) {
+        console.log(
+          `⏭️ [ReplicationCoordinator] Already using ${this._currentServer} server, skipping network online handler`,
+        );
+        return;
+      }
 
       const result = await this.checkAndStartReplications();
 
@@ -171,6 +191,14 @@ export class ReplicationCoordinatorService {
         return;
       }
 
+      // Check if already using secondary - skip if already using secondary
+      if (this._currentServer === 'secondary') {
+        console.log(
+          '⏭️ [ReplicationCoordinator] Already using secondary server, skipping switch',
+        );
+        return;
+      }
+
       // Check if secondary server is available
       const secondaryUrl = environment.apiSecondaryUrl || environment.apiUrl;
       const secondaryAvailable = await checkGraphQLConnection(secondaryUrl);
@@ -182,11 +210,13 @@ export class ReplicationCoordinatorService {
         this._replicationsStopped = false; // Clear flag when switching
         this._replicationsStopped$.next(false); // Emit state change
         await this.databaseService.switchToSecondary();
+        this._currentServer = 'secondary'; // Update current server
       } else {
         console.log(
           '⚠️ [ReplicationCoordinator] Secondary server also unavailable, stopping all replications',
         );
         await this.databaseService.stopAllReplicationsGracefully();
+        this._currentServer = null; // Clear current server when stopped
         this._replicationsStopped = true; // Set flag after stopping
         this._replicationsStopped$.next(true); // Emit state change
       }
@@ -235,6 +265,14 @@ export class ReplicationCoordinatorService {
         return;
       }
 
+      // Check if already using primary - skip if already using primary
+      if (this._currentServer === 'primary') {
+        console.log(
+          '⏭️ [ReplicationCoordinator] Already using primary server, skipping switch',
+        );
+        return;
+      }
+
       // Check if primary server is available
       const primaryAvailable = await checkGraphQLConnection(environment.apiUrl);
 
@@ -245,11 +283,13 @@ export class ReplicationCoordinatorService {
         this._replicationsStopped = false; // Clear flag when switching
         this._replicationsStopped$.next(false); // Emit state change
         await this.databaseService.switchToPrimary();
+        this._currentServer = 'primary'; // Update current server
       } else {
         console.log(
           '⚠️ [ReplicationCoordinator] Primary server also unavailable, stopping all replications',
         );
         await this.databaseService.stopAllReplicationsGracefully();
+        this._currentServer = null; // Clear current server when stopped
         this._replicationsStopped = true; // Set flag after stopping
         this._replicationsStopped$.next(true); // Emit state change
       }
@@ -300,6 +340,7 @@ export class ReplicationCoordinatorService {
       }
 
       await this.databaseService.stopAllReplicationsGracefully();
+      this._currentServer = null; // Clear current server when stopped
       this._replicationsStopped = true; // Set flag after stopping
       this._replicationsStopped$.next(true); // Emit state change
       console.log(
@@ -342,6 +383,14 @@ export class ReplicationCoordinatorService {
         return;
       }
 
+      // Check if already using primary - skip if already using primary
+      if (this._currentServer === 'primary') {
+        console.log(
+          '⏭️ [ReplicationCoordinator] Already using primary server, skipping recovery switch',
+        );
+        return;
+      }
+
       // Verify primary is actually available
       const primaryAvailable = await checkGraphQLConnection(environment.apiUrl);
       if (!primaryAvailable) {
@@ -352,6 +401,7 @@ export class ReplicationCoordinatorService {
       }
 
       await this.databaseService.switchToPrimary();
+      this._currentServer = 'primary'; // Update current server
       this._replicationsStopped = false; // Clear flag when switching
       this._replicationsStopped$.next(false); // Emit state change
       console.log('✅ [ReplicationCoordinator] Switched to primary server');
@@ -418,6 +468,45 @@ export class ReplicationCoordinatorService {
   }
 
   /**
+   * Ensure replications are initialized
+   * Check if replication states exist, and reinitialize if missing
+   * Internal helper method
+   */
+  private async ensureReplicationsInitialized(): Promise<void> {
+    // Check if database is initialized first
+    if (!this.databaseService.isInitialized()) {
+      console.log(
+        '⏭️ [ReplicationCoordinator] Database not initialized, cannot ensure replications',
+      );
+      return;
+    }
+
+    // Check if replication states exist
+    const replicationStates = this.databaseService.getAllReplicationStates();
+    if (replicationStates.size === 0) {
+      console.log(
+        '🔄 [ReplicationCoordinator] No replication states found, reinitializing...',
+      );
+      try {
+        await this.databaseService.reinitializeReplications();
+        console.log(
+          '✅ [ReplicationCoordinator] Replications reinitialized successfully',
+        );
+      } catch (error: any) {
+        console.error(
+          '❌ [ReplicationCoordinator] Error reinitializing replications:',
+          error.message,
+        );
+        throw error;
+      }
+    } else {
+      console.log(
+        `✅ [ReplicationCoordinator] Replication states exist (${replicationStates.size} states)`,
+      );
+    }
+  }
+
+  /**
    * Check server availability and start appropriate replications
    * Internal helper method
    */
@@ -425,6 +514,27 @@ export class ReplicationCoordinatorService {
     success: boolean;
     message: string;
   }> {
+    // Check if already using a server - skip if already active
+    if (this._currentServer === 'primary') {
+      console.log(
+        '⏭️ [ReplicationCoordinator] Already using primary server, skipping start',
+      );
+      return {
+        success: true,
+        message: 'เชื่อมต่อกับ Primary Server อยู่แล้ว',
+      };
+    }
+
+    if (this._currentServer === 'secondary') {
+      console.log(
+        '⏭️ [ReplicationCoordinator] Already using secondary server, skipping start',
+      );
+      return {
+        success: true,
+        message: 'เชื่อมต่อกับ Secondary Server อยู่แล้ว',
+      };
+    }
+
     // Check primary server first
     const primaryAvailable = await checkGraphQLConnection(environment.apiUrl);
     if (primaryAvailable) {
@@ -433,6 +543,7 @@ export class ReplicationCoordinatorService {
       );
       try {
         await this.databaseService.startPrimary();
+        this._currentServer = 'primary'; // Update current server
         return {
           success: true,
           message: 'เชื่อมต่อกับ Primary Server สำเร็จ',
@@ -458,6 +569,7 @@ export class ReplicationCoordinatorService {
       );
       try {
         await this.databaseService.startSecondary();
+        this._currentServer = 'secondary'; // Update current server
         return {
           success: true,
           message: 'เชื่อมต่อกับ Secondary Server สำเร็จ',
@@ -511,6 +623,7 @@ export class ReplicationCoordinatorService {
       }
 
       await this.databaseService.stopReplication();
+      this._currentServer = null; // Clear current server when stopped
       console.log(
         '✅ [ReplicationCoordinator] All replications stopped (app destroy)',
       );

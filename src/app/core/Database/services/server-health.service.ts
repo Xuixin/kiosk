@@ -156,6 +156,20 @@ export class ServerHealthService {
         return;
       }
 
+      // Check if already using secondary - skip notification to prevent duplicate
+      const currentServer = this.replicationCoordinator.getCurrentServer();
+      if (currentServer === 'secondary') {
+        console.log(
+          '⏭️ [ServerHealth] Already using secondary server, skipping duplicate notification',
+        );
+        // Still update flag and try to connect to secondary
+        this.isUsingSecondary = true;
+        setTimeout(() => {
+          this.connect();
+        }, 1000);
+        return;
+      }
+
       // Delegate to coordinator
       console.log(
         '🔄 [ServerHealth] Primary server disconnected - delegating to coordinator...',
@@ -199,6 +213,17 @@ export class ServerHealthService {
    * Stop reconnecting when both servers are down - replications are stopped
    */
   private async handleBothServersDown(): Promise<void> {
+    // Check if replications already stopped - skip if already stopped
+    if (this.replicationCoordinator.isReplicationsStopped()) {
+      console.log(
+        '⏭️ [ServerHealth] Replications already stopped, skipping duplicate notification',
+      );
+      // Cancel any pending reconnect attempts
+      this.reconnectTimer?.unsubscribe();
+      this.reconnectTimer = null;
+      return;
+    }
+
     console.log(
       '🛑 [ServerHealth] Both servers are down - delegating to coordinator...',
     );
