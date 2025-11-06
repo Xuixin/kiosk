@@ -12,9 +12,7 @@ import {
   pullDeviceMonitoringQueryBuilder,
   pushDeviceMonitoringQueryBuilder,
   pullStreamDeviceMonitoringQueryBuilder,
-  pullDeviceMonitoringHistoryQueryBuilder,
   pushDeviceMonitoringHistoryQueryBuilder,
-  pullStreamDeviceMonitoringHistoryQueryBuilder,
 } from '../services/query-builder-functions';
 import { ReplicationConfig } from '../services/replication-helper';
 
@@ -134,13 +132,13 @@ export function createReplicationConfigs(
         });
       },
     },
-    // Device Monitoring History Primary
+    // Device Monitoring History Primary (push only - no pull/stream)
     {
       name: 'devicemonitoringhistory-primary',
       collection: db.devicemonitoringhistory,
-      pullQueryBuilder: pullDeviceMonitoringHistoryQueryBuilder,
+      // pullQueryBuilder: undefined, // Push only - no pull
+      // pullStreamQueryBuilder: undefined, // Push only - no stream
       pushQueryBuilder: pushDeviceMonitoringHistoryQueryBuilder,
-      pullStreamQueryBuilder: pullStreamDeviceMonitoringHistoryQueryBuilder,
       checkpointField: 'server_updated_at',
       urls: {
         http: environment.apiUrl,
@@ -149,13 +147,13 @@ export function createReplicationConfigs(
       replicationIdentifier: 'device_monitoring_history-primary-10102',
       serverId: serverId,
     },
-    // Device Monitoring History Secondary
+    // Device Monitoring History Secondary (push only - no pull/stream)
     {
       name: 'devicemonitoringhistory-secondary',
       collection: db.devicemonitoringhistory,
-      pullQueryBuilder: pullDeviceMonitoringHistoryQueryBuilder,
+      // pullQueryBuilder: undefined, // Push only - no pull
+      // pullStreamQueryBuilder: undefined, // Push only - no stream
       pushQueryBuilder: pushDeviceMonitoringHistoryQueryBuilder,
-      pullStreamQueryBuilder: pullStreamDeviceMonitoringHistoryQueryBuilder,
       checkpointField: 'cloud_updated_at',
       urls: {
         http: environment.apiSecondaryUrl || environment.apiUrl,
@@ -164,15 +162,7 @@ export function createReplicationConfigs(
       replicationIdentifier: 'device_monitoring_history-secondary-3001',
       serverId: serverId,
       autoStart: false, // Don't start until needed
-      onReceived: async (docs) => {
-        // Check for primary recovery conditions when receiving data from secondary
-        if (docs && docs.length > 0) {
-          // TODO: Implement primary recovery check
-          console.log(
-            '[DeviceMonitoringHistory Secondary] Received docs, checking for primary recovery...',
-          );
-        }
-      },
+      // onReceived not needed for push-only replication
     },
   ];
 }
