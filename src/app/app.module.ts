@@ -43,6 +43,7 @@ import {
   cloudOfflineOutline,
   settingsOutline,
   alertCircleOutline,
+  serverOutline,
 } from 'ionicons/icons';
 
 // Register Ionic Icons
@@ -54,7 +55,8 @@ addIcons({
   'archive-outline': archiveOutline,
   'cloud-offline-outline': cloudOfflineOutline,
   'settings-outline': settingsOutline,
-    'alert-circle-outline': alertCircleOutline,
+  'alert-circle-outline': alertCircleOutline,
+  'server-outline': serverOutline,
 });
 
 @NgModule({

@@ -30,7 +30,8 @@
                 {{ currentTime | date: 'HH:mm' }}
               </p>
             </div>
-            <div>
+            <div class="flex items-center gap-2">
+              <!-- Replication Start Button (Admin Only) - Small button -->
               <ion-button
                 (click)="startReplication()"
                 *ngIf="isBothServersDown()"
@@ -39,6 +40,7 @@
                 class="text-yellow-500"
                 color="yellow"
                 [disabled]="isStartingReplication()"
+                title="เริ่มต้นการเชื่อมต่อเซิร์ฟเวอร์"
               >
                 <ion-icon
                   *ngIf="!isStartingReplication()"
@@ -52,6 +54,21 @@
                   name="crescent"
                   class="text-lg"
                 ></ion-spinner>
+              </ion-button>
+
+              <!-- Log Replication States Button -->
+              <ion-button
+                (click)="logReplicationStates()"
+                fill="clear"
+                size="small"
+                class="text-gray-600"
+                title="แสดงสถานะ Replication"
+              >
+                <ion-icon
+                  slot="icon-only"
+                  name="server-outline"
+                  class="text-lg"
+                ></ion-icon>
               </ion-button>
             </div>
           </div>

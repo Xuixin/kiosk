@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, Injector, inject } from '@angular/core';
 import { createRxDatabase, RxDatabase, RxCollection } from 'rxdb';
 import { environment } from 'src/environments/environment';
 import { ClientIdentityService } from '../../../services/client-identity.service';
@@ -7,6 +7,7 @@ import { DEVICE_MONITORING_SCHEMA } from '../collection/device-monitoring/schema
 import { DEVICE_MONITORING_HISTORY_SCHEMA } from '../collection/device-monitoring-history/schema';
 import { ReplicationManagerService } from '../replication/services/replication-manager.service';
 import { RxGraphQLReplicationState } from 'rxdb/plugins/replication-graphql';
+import { ReplicationCoordinatorService } from './replication-coordinator.service';
 
 interface DatabaseCollections {
   transaction: RxCollection;
@@ -23,8 +24,12 @@ export class DatabaseService {
   private db: RxDatabase<DatabaseCollections> | null = null;
   private readonly identity = inject(ClientIdentityService);
   private readonly replicationManager = inject(ReplicationManagerService);
+  private readonly injector = inject(Injector);
   private _initializing = false; // Prevent concurrent initialization
   private _initializationPromise: Promise<void> | null = null; // Track ongoing initialization
+
+  // Event emitter for primary recovery
+  private primaryRecoveryListeners: Set<() => void | Promise<void>> = new Set();
 
   /**
    * Set replication monitor service (called after initialization to avoid circular dependency)
@@ -141,22 +146,86 @@ export class DatabaseService {
 
       console.log('✅ [NewDatabase] Database and collections initialized');
 
-      // Initialize replications only if not already initialized
-      // Replications initialization may fail in offline mode, but that's OK
-      // Database will still work in offline mode
       if (this.replicationManager.getAllReplicationStates().size === 0) {
         try {
-          await this.replicationManager.initializeReplications(this.db);
+          const primaryAvailable = await this.checkConnection(
+            environment.apiUrl,
+          );
+          let useSecondary = false;
+          let secondaryAvailable = false;
+
+          if (!primaryAvailable) {
+            const secondaryUrl =
+              environment.apiSecondaryUrl || environment.apiUrl;
+            secondaryAvailable = await this.checkConnection(secondaryUrl);
+
+            if (!secondaryAvailable) {
+              const serverId =
+                (await this.identity.getClientId()) || environment.serverId;
+
+              // deviceEventFacade is not used in kiosk, pass null
+              const deviceEventFacade = null;
+
+              await this.replicationManager.initializeReplications(
+                this.db,
+                false,
+                serverId,
+                deviceEventFacade,
+                () => this.emitPrimaryRecoveryEvent(),
+              );
+
+              try {
+                const coordinator = this.injector.get(
+                  ReplicationCoordinatorService,
+                );
+                // Update coordinator state to stopped
+                await coordinator.handleBothServersDown();
+              } catch (coordError: any) {
+                console.warn(
+                  '⚠️ [NewDatabase] Could not notify coordinator of offline state:',
+                  coordError.message,
+                );
+              }
+
+              return;
+            }
+
+            useSecondary = true;
+            (window as any).__USE_SECONDARY_SERVER__ = true;
+          } else {
+            (window as any).__USE_SECONDARY_SERVER__ = false;
+          }
+
+          const serverId =
+            (await this.identity.getClientId()) || environment.serverId;
+
+          // deviceEventFacade is not used in kiosk, pass null
+          const deviceEventFacade = null;
+          await this.replicationManager.initializeReplications(
+            this.db,
+            useSecondary,
+            serverId,
+            deviceEventFacade,
+            () => this.emitPrimaryRecoveryEvent(),
+          );
+
+          // Start replication after initialization (only if at least one server is available)
+          const bothDown = !primaryAvailable && !secondaryAvailable;
+          if (!bothDown) {
+            await this.replicationManager.startReplication(
+              useSecondary ? 'secondary' : 'primary',
+            );
+          }
         } catch (replicationError: any) {
-          // Don't fail database initialization if replications fail
-          // This allows offline-first operation
-          console.log(
+          console.warn(
             '⚠️ [NewDatabase] Replication initialization failed (may be offline):',
             replicationError.message,
           );
           console.log(
             '💡 [NewDatabase] Database is ready for offline operation. Replications will be initialized when connection is restored.',
           );
+          // Database is still initialized and functional, just replications are not active
+          // This is acceptable for offline-first operation
         }
       } else {
         console.log(
@@ -171,6 +240,44 @@ export class DatabaseService {
       // Reset state on error so it can be retried
       this.db = null;
       throw error;
+    }
+  }
+
+  /**
+   * Check connection to GraphQL server
+   */
+  private async checkConnection(url: string): Promise<boolean> {
+    try {
+      console.log(`🔍 [NewDatabase] Checking connection to server: ${url}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout 5 วินาที
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: '{ __typename }', // Simple introspection query
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        console.log(
+          `✅ [NewDatabase] Connection to GraphQL server successful: ${url}`,
+        );
+        return true;
+      } else {
+        console.warn(
+          `⚠️ [NewDatabase] GraphQL server responded with error: ${response.status} (${url})`,
+        );
+        return false;
+      }
+    } catch (error: any) {
+      return false;
     }
   }
 
@@ -205,6 +312,14 @@ export class DatabaseService {
   }
 
   /**
+   * Log replication states data
+   * Delegates to ReplicationManagerService
+   */
+  logReplicationStates(): void {
+    this.replicationManager.logReplicationStates();
+  }
+
+  /**
    * Check if database is initialized
    */
   isInitialized(): boolean {
@@ -212,31 +327,43 @@ export class DatabaseService {
   }
 
   /**
+   * Start replication - single entry point
+   * Delegates to ReplicationManagerService
+   */
+  async startReplication(serverType?: 'primary' | 'secondary'): Promise<void> {
+    return this.replicationManager.startReplication(serverType);
+  }
+
+  /**
    * Start secondary replications
+   * Delegates to startReplication() for consistency
    */
   async startSecondary(): Promise<void> {
-    return this.replicationManager.startSecondary();
+    return this.startReplication('secondary');
   }
 
   /**
    * Start primary replications
+   * Delegates to startReplication() for consistency
    */
   async startPrimary(): Promise<void> {
-    return this.replicationManager.startPrimary();
+    return this.startReplication('primary');
   }
 
   /**
    * Switch all replications from primary to secondary
+   * Delegates to startReplication() for consistency
    */
   async switchToSecondary(): Promise<void> {
-    return this.replicationManager.switchToSecondary();
+    return this.startReplication('secondary');
   }
 
   /**
    * Switch all replications from secondary back to primary
+   * Delegates to startReplication() for consistency
    */
   async switchToPrimary(): Promise<void> {
-    return this.replicationManager.switchToPrimary();
+    return this.startReplication('primary');
   }
 
   /**
@@ -249,29 +376,65 @@ export class DatabaseService {
   /**
    * Reinitialize replications (public method for reconnecting after offline)
    * Checks server availability and starts appropriate replications
+   * Delegates to ReplicationManagerService
+   * Handles both servers down gracefully (no throw, offline-first behavior)
    */
   async reinitializeReplications(): Promise<void> {
     if (!this.db) {
       throw new Error('Database must be initialized first');
     }
-    return this.replicationManager.reinitializeReplications(this.db);
+
+    const serverId =
+      (await this.identity.getClientId()) || environment.serverId;
+
+    // deviceEventFacade is not used in kiosk, pass null
+    const deviceEventFacade = null;
+    try {
+      return await this.replicationManager.reinitializeReplications(
+        this.db,
+        (url: string) => this.checkConnection(url),
+        serverId,
+        deviceEventFacade,
+        () => this.emitPrimaryRecoveryEvent(),
+      );
+    } catch (error: any) {
+      // If both servers are down, reinitializeReplications now handles it gracefully
+      // But we still catch any unexpected errors and log them
+      console.warn(
+        '⚠️ [DatabaseService] Error during reinitializeReplications:',
+        error.message,
+      );
+      // Don't throw - offline-first behavior
+    }
   }
 
   /**
    * Subscribe to primary recovery events
    * Called when primary server is detected as ONLINE while using secondary
-   * Delegates to ReplicationManagerService
    */
   onPrimaryRecovery(callback: () => void | Promise<void>): () => void {
-    return this.replicationManager.onPrimaryRecovery(callback);
+    this.primaryRecoveryListeners.add(callback);
+    // Return unsubscribe function
+    return () => {
+      this.primaryRecoveryListeners.delete(callback);
+    };
   }
 
   /**
-   * Stop all replications gracefully (when both servers are down)
-   * Does not clear replication states, allowing manual restart
+   * Emit primary recovery event
+   * All registered listeners will be called
    */
-  async stopAllReplicationsGracefully(): Promise<void> {
-    return this.replicationManager.stopAllReplicationsGracefully();
+  private async emitPrimaryRecoveryEvent(): Promise<void> {
+    console.log(
+      `📢 [DatabaseService] Emitting primary recovery event to ${this.primaryRecoveryListeners.size} listener(s)`,
+    );
+
+    const promises = Array.from(this.primaryRecoveryListeners).map((callback) =>
+      Promise.resolve(callback()),
+    );
+
+    await Promise.all(promises);
+    console.log('✅ [DatabaseService] Primary recovery event handled');
   }
 
   /**

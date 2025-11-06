@@ -17,7 +17,7 @@ import {
 import { ClientIdentityService } from '../services/client-identity.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ReplicationCoordinatorService } from '../core/Database/services/replication-coordinator.service';
-import { ServerHealthService } from '../core/Database/services/server-health.service';
+import { DatabaseService } from '../core/Database/services/database.service';
 import { DeviceMonitoringHistoryFacade } from '../core/Database/collection/device-monitoring-history';
 
 @Component({
@@ -42,7 +42,7 @@ export class HomePage implements OnInit, OnDestroy {
   private readonly replicationCoordinator = inject(
     ReplicationCoordinatorService,
   );
-  private readonly serverHealth = inject(ServerHealthService);
+  private readonly databaseService = inject(DatabaseService);
 
   public readonly inCount = computed(() => this.transactionService.stats().in);
 
@@ -96,12 +96,6 @@ export class HomePage implements OnInit, OnDestroy {
         // Show alert if servers are still unavailable
         alert(result.message);
       } else {
-        console.log(
-          '🔄 [HomePage] Starting server health monitoring after manual start...',
-        );
-        setTimeout(() => {
-          this.serverHealth.startMonitoring();
-        }, 500);
       }
     } catch (error: any) {
       console.error('❌ Error starting replications:', error);
@@ -147,5 +141,12 @@ export class HomePage implements OnInit, OnDestroy {
     };
 
     await this.deviceMonitoringHistoryFacade.append(dataLog);
+  }
+
+  /**
+   * Log replication states data
+   */
+  logReplicationStates(): void {
+    this.databaseService.logReplicationStates();
   }
 }

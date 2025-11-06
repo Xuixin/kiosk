@@ -23,16 +23,18 @@ interface DatabaseCollections {
 }
 
 /**
- * Create replication configurations for all collections
+ * Create all replication configurations
  * @param db - RxDatabase instance
  * @param serverId - Server ID for replication
- * @param emitPrimaryRecovery - Callback function to emit primary recovery event
- * @returns Array of ReplicationConfig objects
+ * @param deviceEventFacade - DeviceEventFacade instance for creating device events (optional, not used if not provided)
+ * @param emitPrimaryRecoveryFn - Function to emit primary recovery event
+ * @returns Array of replication configurations
  */
 export function createReplicationConfigs(
   db: RxDatabase<DatabaseCollections>,
   serverId: string,
-  emitPrimaryRecovery: () => Promise<void>,
+  deviceEventFacade: any,
+  emitPrimaryRecoveryFn: () => Promise<void>,
 ): ReplicationConfig[] {
   return [
     // Transaction Primary
@@ -65,15 +67,6 @@ export function createReplicationConfigs(
       replicationIdentifier: 'txn-secondary-3001',
       serverId: serverId,
       autoStart: false, // Don't start until needed
-      onReceived: async (docs) => {
-        // Check device status for primary recovery when receiving data from secondary
-        if (docs && docs.length > 0) {
-          // TODO: Implement primary recovery check
-          console.log(
-            '[Transaction Secondary] Received docs, checking for primary recovery...',
-          );
-        }
-      },
     },
     // Device Monitoring Primary (readOnly - no push)
     {
@@ -116,14 +109,14 @@ export function createReplicationConfigs(
             doc.status === 'ONLINE'
           ) {
             console.log(
-              '🔄 [DatabaseService] Primary server detected as ONLINE, queuing switchToPrimary event',
+              '🔄 [ReplicationConfig] Primary server detected as ONLINE, queuing switchToPrimary event',
             );
             // Emit event asynchronously outside replication scope
             // This ensures replication process is not blocked
             queueMicrotask(() => {
-              emitPrimaryRecovery().catch((error) => {
+              emitPrimaryRecoveryFn().catch((error) => {
                 console.error(
-                  '❌ [DatabaseService] Error emitting primary recovery event:',
+                  '❌ [ReplicationConfig] Error emitting primary recovery event:',
                   error,
                 );
               });
