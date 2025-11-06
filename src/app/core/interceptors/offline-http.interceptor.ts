@@ -42,7 +42,7 @@ export class OfflineHttpInterceptor implements HttpInterceptor {
   ): Observable<HttpEvent<any>> {
     // Check if offline before making request
     if (!this.networkStatus.isOnline()) {
-      console.warn(
+      console.log(
         `⚠️ Request blocked (offline): ${request.method} ${request.url}`,
       );
       return throwError(
@@ -63,7 +63,7 @@ export class OfflineHttpInterceptor implements HttpInterceptor {
           mergeMap((error, attempt) => {
             // Don't retry if offline
             if (!this.networkStatus.isOnline()) {
-              console.warn('⚠️ Retry cancelled: device is offline');
+              console.log('⚠️ Retry cancelled: device is offline');
               return throwError(() => error);
             }
 

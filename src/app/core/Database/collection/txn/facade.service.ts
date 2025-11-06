@@ -56,7 +56,7 @@ export class TransactionService extends BaseFacadeService<any> {
   protected setupSubscriptions(): void {
     const collection = this.collection;
     if (!collection) {
-      console.warn('Transaction collection not available yet');
+      console.log('Transaction collection not available yet');
       return;
     }
 
@@ -99,7 +99,7 @@ export class TransactionService extends BaseFacadeService<any> {
         this.addSubscription(replicationSubscription);
       }
     } catch (error) {
-      console.warn('⚠️ Could not subscribe to replication events:', error);
+      console.log('⚠️ Could not subscribe to replication events:', error);
     }
   }
 
@@ -109,7 +109,7 @@ export class TransactionService extends BaseFacadeService<any> {
   async findAll() {
     const collection = this.collection;
     if (!collection) {
-      console.warn(
+      console.log(
         '⚠️ Transaction collection not available, returning empty array',
       );
       return [];
@@ -132,7 +132,7 @@ export class TransactionService extends BaseFacadeService<any> {
   async findById(id: string) {
     const collection = this.collection;
     if (!collection) {
-      console.warn('⚠️ Transaction collection not available');
+      console.log('⚠️ Transaction collection not available');
       return null;
     }
     try {
@@ -153,7 +153,7 @@ export class TransactionService extends BaseFacadeService<any> {
   async findByStatus(status: string) {
     const collection = this.collection;
     if (!collection) {
-      console.warn('⚠️ Transaction collection not available');
+      console.log('⚠️ Transaction collection not available');
       return [];
     }
     try {

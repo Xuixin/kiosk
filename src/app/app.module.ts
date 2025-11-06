@@ -41,6 +41,8 @@ import {
   documentTextOutline,
   archiveOutline,
   cloudOfflineOutline,
+  settingsOutline,
+  alertCircleOutline,
 } from 'ionicons/icons';
 
 // Register Ionic Icons
@@ -51,6 +53,8 @@ addIcons({
   'document-text-outline': documentTextOutline,
   'archive-outline': archiveOutline,
   'cloud-offline-outline': cloudOfflineOutline,
+  'settings-outline': settingsOutline,
+    'alert-circle-outline': alertCircleOutline,
 });
 
 @NgModule({

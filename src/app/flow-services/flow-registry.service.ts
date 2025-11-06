@@ -37,7 +37,7 @@ export class FlowRegistryService {
       }
     }
 
-    console.warn(`[FlowRegistry] Flow not found: ${id}`);
+    console.log(`[FlowRegistry] Flow not found: ${id}`);
     return null;
   }
 
@@ -47,7 +47,7 @@ export class FlowRegistryService {
   getMainFlow(id: string): Flow | null {
     const flow = this.flows.get(id);
     if (!flow) {
-      console.warn(`[FlowRegistry] Main flow not found: ${id}`);
+      console.log(`[FlowRegistry] Main flow not found: ${id}`);
     }
     return flow || null;
   }
@@ -63,7 +63,7 @@ export class FlowRegistryService {
       }
     }
 
-    console.warn(`[FlowRegistry] Subflow not found: ${id}`);
+    console.log(`[FlowRegistry] Subflow not found: ${id}`);
     return null;
   }
 

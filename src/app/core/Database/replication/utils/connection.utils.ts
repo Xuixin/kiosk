@@ -37,13 +37,13 @@ export async function checkGraphQLConnection(
       );
       return true;
     } else {
-      console.warn(
+      console.log(
         `⚠️ [ConnectionUtils] GraphQL server responded with error: ${response.status} (${url})`,
       );
       return false;
     }
   } catch (error: any) {
-    console.warn(
+    console.log(
       `❌ [ConnectionUtils] Connection check failed for ${url}:`,
       error.message || error,
     );

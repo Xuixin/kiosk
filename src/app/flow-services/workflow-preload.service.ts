@@ -44,7 +44,7 @@ export class WorkflowPreloadService {
         try {
           await this.nodeComponentRegistry.get(key);
         } catch (err) {
-          console.warn(`❌ Failed to preload ${key}:`, err);
+          console.log(`❌ Failed to preload ${key}:`, err);
         }
       });
 

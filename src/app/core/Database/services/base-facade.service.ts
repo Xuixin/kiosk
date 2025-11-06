@@ -59,7 +59,7 @@ export abstract class BaseFacadeService<T = any> implements OnDestroy {
       const dbCollectionName =
         COLLECTION_NAME_MAP[collectionName.toLowerCase()];
       if (!dbCollectionName) {
-        console.warn(
+        console.log(
           `Unknown collection name: ${collectionName}, returning null`,
         );
         return null;
@@ -67,7 +67,7 @@ export abstract class BaseFacadeService<T = any> implements OnDestroy {
 
       return (db[dbCollectionName] as RxCollection<T>) || null;
     } catch (error) {
-      console.warn(
+      console.log(
         `${this.getCollectionName()} collection not available yet:`,
         error,
       );

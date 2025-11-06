@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, startWith, shareReplay } from 'rxjs/operators';
 import { RxCollection } from 'rxdb';
 import { BaseFacadeService } from '../../services/base-facade.service';
 import { ReplicationStateMonitorService } from '../../replication/services/replication-state-monitor.service';
@@ -87,7 +87,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
   protected setupSubscriptions(): void {
     const collection = this.collection;
     if (!collection) {
-      console.warn(
+      console.log(
         '📱 DeviceMonitoring collection not ready, will retry when accessed',
       );
       return;
@@ -142,7 +142,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
         this.addSubscription(replicationSubscription);
       }
     } catch (error) {
-      console.warn('⚠️ Could not subscribe to replication events:', error);
+      console.log('⚠️ Could not subscribe to replication events:', error);
     }
   }
 
@@ -193,12 +193,57 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
       `[DeviceMonitoringFacade] getDeviceMonitoringByType$ called with type:`,
       type,
     );
+
+    // Ensure initialized first
+    this.ensureInitialized();
+
     const collection = this.collection;
     if (!collection) {
-      console.warn(
-        `[DeviceMonitoringFacade] Collection is null, returning empty observable`,
+      console.log(
+        `[DeviceMonitoringFacade] Collection is null, returning empty observable with retry`,
       );
-      return new Observable((observer) => observer.next([]));
+      // Return observable that emits empty array immediately and retries
+      const retryObservable = new Observable<DeviceMonitoringDocument[]>(
+        (observer) => {
+          // Emit empty array immediately
+          observer.next([]);
+
+          // Retry when collection becomes available
+          const maxRetries = 10;
+          let retries = 0;
+          const retryInterval = setInterval(() => {
+            retries++;
+            const retryCollection = this.collection;
+            if (retryCollection) {
+              clearInterval(retryInterval);
+              console.log(
+                `[DeviceMonitoringFacade] Collection now available after ${retries} retries, subscribing...`,
+              );
+              retryCollection
+                .find({
+                  selector: {
+                    type: Array.isArray(type) ? { $in: type } : type,
+                  },
+                } as any)
+                .$.pipe(
+                  map((docs: any[]) => {
+                    return docs.filter((doc: any) => !(doc as any)._deleted);
+                  }),
+                  startWith([]),
+                  shareReplay(1),
+                )
+                .subscribe(observer);
+            } else if (retries >= maxRetries) {
+              clearInterval(retryInterval);
+              console.log(
+                `[DeviceMonitoringFacade] Max retries reached, collection still not available`,
+              );
+            }
+          }, 500);
+        },
+      );
+
+      return retryObservable.pipe(shareReplay(1));
     }
     console.log(
       `[DeviceMonitoringFacade] Collection found, querying for type:`,
@@ -238,6 +283,8 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
           );
           return filtered;
         }),
+        startWith([]),
+        shareReplay(1),
       );
   }
 
@@ -320,10 +367,22 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
 
   /**
    * Get doors as observable (for reactive UI)
+   * Returns cached observable that emits immediately with current doors
    */
+  private _doors$: Observable<DeviceMonitoringDocument[]> | null = null;
+
   getDoors$(): Observable<DeviceMonitoringDocument[]> {
+    // Return cached observable if exists
+    if (this._doors$) {
+      return this._doors$;
+    }
+
+    // Ensure collection is initialized
+    this.ensureInitialized();
+
     const doorType = ['DOOR', 'door'];
-    return this.getDeviceMonitoringByType$(doorType);
+    this._doors$ = this.getDeviceMonitoringByType$(doorType);
+    return this._doors$;
   }
 
   /**
@@ -348,7 +407,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
 
     const collection = this.collection;
     if (!collection) {
-      console.warn('📱 DeviceMonitoring collection not available yet');
+      console.log('📱 DeviceMonitoring collection not available yet');
       return [];
     }
     console.log('🔄 Manually refreshing device monitoring...');
@@ -398,7 +457,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
         // Check if there's a SERVER device with different name
         const serverDevices = activeDevices.filter((d) => d.type === 'SERVER');
         if (serverDevices.length > 0) {
-          console.warn(
+          console.log(
             `⚠️ Found device with name "${serverName}" but type is "${primaryServerDevice.type}".`,
             `Found ${serverDevices.length} SERVER device(s):`,
             serverDevices.map((d) => ({ id: d.id, name: d.name })),
@@ -409,7 +468,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
             `🔄 Using SERVER device instead: ${primaryServerDevice.name}`,
           );
         } else {
-          console.warn(
+          console.log(
             `⚠️ No SERVER type device found. Using device "${primaryServerDevice.name}" (type: ${primaryServerDevice.type})`,
           );
         }
@@ -420,7 +479,7 @@ export class DeviceMonitoringFacade extends BaseFacadeService<DeviceMonitoringDo
         (d) => d.type === 'SERVER' || d.type === 'server',
       );
       if (serverDevices.length > 0) {
-        console.warn(
+        console.log(
           `⚠️ Device with name "${serverName}" not found. Using first SERVER device:`,
           serverDevices[0],
         );

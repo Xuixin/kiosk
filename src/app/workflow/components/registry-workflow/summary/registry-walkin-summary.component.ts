@@ -384,7 +384,7 @@ export class RegistryWalkinSummaryComponent
         });
       }
     } catch (e) {
-      console.warn('[Summary] Unable to resolve doors for offline check', e);
+      console.log('[Summary] Unable to resolve doors for offline check', e);
     }
 
     const data: RegistryTransaction = {
@@ -506,7 +506,7 @@ export class RegistryWalkinSummaryComponent
           });
         });
       } else {
-        console.warn('🔍 [DEBUG] No doors found!');
+        console.log('🔍 [DEBUG] No doors found!');
       }
     } catch (error) {
       console.error('🔍 [DEBUG] Error in debugAllDoors:', error);

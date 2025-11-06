@@ -8,9 +8,9 @@ import {
   OnDestroy,
   signal,
   Type,
-} from "@angular/core";
-import { Router } from "@angular/router";
-import { Subject } from "rxjs";
+} from '@angular/core';
+import { Router } from '@angular/router';
+import { Subject } from 'rxjs';
 import {
   Flow,
   FlowCommand,
@@ -19,18 +19,18 @@ import {
   FlowNode,
   FlowState,
   TelemetryEvent,
-} from "../types/flow.types";
+} from '../types/flow.types';
 import {
   FLOW_ERROR_CODES,
   FlowContext,
   FlowError,
-} from "../types/workflow-error";
+} from '../types/workflow-error';
 import {
   FlowModalConfig,
   ModalResult,
   ModalsControllerService,
-} from "./modals-controller.service";
-import { NodeComponentRegistryService } from "./node-component-registry.service";
+} from './modals-controller.service';
+import { NodeComponentRegistryService } from './node-component-registry.service';
 
 // type WorkflowCommand =
 //   | 'START'
@@ -47,8 +47,8 @@ import { NodeComponentRegistryService } from "./node-component-registry.service"
 //   | 'ERROR';
 
 // type NavigationDirection = 'forward' | 'backward';
-type BackBehavior = "allow" | "skip" | "close";
-type DeviceTarget = "all" | "mobile" | "tablet+" | "none";
+type BackBehavior = 'allow' | 'skip' | 'close';
+type DeviceTarget = 'all' | 'mobile' | 'tablet+' | 'none';
 
 interface SubflowStackEntry {
   flow: Flow;
@@ -63,14 +63,14 @@ interface NavigationResult {
 
 interface EdgeCondition {
   field: string;
-  operator: "==" | "===" | "!=" | "!==" | ">" | ">=" | "<" | "<=";
+  operator: '==' | '===' | '!=' | '!==' | '>' | '>=' | '<' | '<=';
   value: any;
 }
 
 // ========== SERVICE ==========
 
 @Injectable({
-  providedIn: "root",
+  providedIn: 'root',
 })
 export class FlowRunnerService implements OnDestroy {
   // ========== DEPENDENCIES ==========
@@ -135,7 +135,7 @@ export class FlowRunnerService implements OnDestroy {
 
   constructor() {
     effect(() => {
-      console.log("Current state:", this.workflowState());
+      console.log('Current state:', this.workflowState());
       // console.log('Can go next:', this.canGoNext());
       // console.log('Can go back:', this.canGoBack());
     });
@@ -157,12 +157,12 @@ export class FlowRunnerService implements OnDestroy {
     const handler = this.commandHandlers[event.command];
     if (!handler) {
       this.handlers.handleError({
-        command: "ERROR",
+        command: 'ERROR',
         payload: {
           error: new FlowError(
             `Unknown command '${event.command}'`,
             FLOW_ERROR_CODES.COMMAND_EXECUTION_FAILED,
-            { command: event.command }
+            { command: event.command },
           ),
         },
       });
@@ -173,13 +173,13 @@ export class FlowRunnerService implements OnDestroy {
       const result = handler(event);
       void Promise.resolve(result).catch((error) =>
         this.handlers.handleError({
-          command: "ERROR",
+          command: 'ERROR',
           payload: { error },
-        })
+        }),
       );
     } catch (error) {
       this.handlers.handleError({
-        command: "ERROR",
+        command: 'ERROR',
         payload: { error },
       });
     }
@@ -221,12 +221,12 @@ export class FlowRunnerService implements OnDestroy {
       this.stateManager.setCurrentNode(resolvedNode);
       this.stateManager.addToHistory(resolvedNode);
 
-      if (resolvedNode.type === "task") {
+      if (resolvedNode.type === 'task') {
         this.stateManager.setLastTask(resolvedNode);
       }
 
       this.eventManager.emitNodeEnter(resolvedNode, flow!.id);
-      this.eventManager.emitWorkflowEvent("START", {
+      this.eventManager.emitWorkflowEvent('START', {
         flowId: flow!.id,
         startNodeId: resolvedNode.id,
       });
@@ -234,65 +234,65 @@ export class FlowRunnerService implements OnDestroy {
       await this.modalManager.handleTransition(
         resolvedNode,
         flow!.id,
-        "START",
-        "Handle Start..."
+        'START',
+        'Handle Start...',
       );
     },
 
     handleNext: async (event: FlowEvent): Promise<void> => {
-      console.log("handleNext called with event:", event);
+      console.log('handleNext called with event:', event);
 
       const { nodeId, context: contextUpdates } = event.payload || {};
-      console.log("Extracted payload:", { nodeId, contextUpdates });
+      console.log('Extracted payload:', { nodeId, contextUpdates });
 
       const current = this.state.currentNode();
       const flow = this.state.flow();
-      console.log("Current state:", { current, flow });
+      console.log('Current state:', { current, flow });
 
       if (!this.validators.canNavigate(current, flow)) {
-        console.log("Cannot navigate - validation failed");
+        console.log('Cannot navigate - validation failed');
         return;
       }
 
       if (contextUpdates) {
-        console.log("Updating context with:", contextUpdates);
+        console.log('Updating context with:', contextUpdates);
         this.stateManager.updateContext(contextUpdates);
       }
 
       const targetNodeId =
         nodeId || this.navigation.getNextNodeId(current!.id, flow!);
-      console.log("Resolved target node ID:", targetNodeId);
+      console.log('Resolved target node ID:', targetNodeId);
       if (!targetNodeId) {
-        console.log("No target node ID found");
+        console.log('No target node ID found');
         return;
       }
 
       const targetNode = this.validators.validateNode(flow!, targetNodeId);
-      console.log("Validated target node:", targetNode);
+      console.log('Validated target node:', targetNode);
 
       const resolvedNode = this.navigation.resolveForward(targetNode, flow!);
-      console.log("Resolved forward node:", resolvedNode);
+      console.log('Resolved forward node:', resolvedNode);
 
-      console.log("Navigating to node:", resolvedNode);
+      console.log('Navigating to node:', resolvedNode);
       this.stateManager.navigateToNode(resolvedNode);
 
-      console.log("Emitting events");
+      console.log('Emitting events');
       this.eventManager.emitNodeEnter(resolvedNode, flow!.id, current!.id);
       this.eventManager.emitEdgeTaken(current!.id, resolvedNode.id, flow!);
-      this.eventManager.emitWorkflowEvent("NEXT", {
+      this.eventManager.emitWorkflowEvent('NEXT', {
         from: current!.id,
         to: resolvedNode.id,
         targetNodeId: resolvedNode.id,
       });
 
-      console.log("Handling modal transition");
+      console.log('Handling modal transition');
       await this.modalManager.handleTransition(
         resolvedNode,
         flow!.id,
-        "NEXT",
-        "Handle Next..."
+        'NEXT',
+        'Handle Next...',
       );
-      console.log("handleNext completed");
+      console.log('handleNext completed');
     },
 
     handleBack: async (event: FlowEvent): Promise<void> => {
@@ -317,19 +317,19 @@ export class FlowRunnerService implements OnDestroy {
       this.eventManager.emitNodeEnter(
         previousNode,
         flow!.id,
-        history[history.length - 1].id
+        history[history.length - 1].id,
       );
       await this.modalManager.handleTransition(
         previousNode,
         flow!.id,
-        "BACK",
-        "Handle Back..."
+        'BACK',
+        'Handle Back...',
       );
     },
 
     handleClose: async (event: FlowEvent): Promise<void> => {
       const {
-        reason = "user-initiated",
+        reason = 'user-initiated',
         context: contextUpdates,
         ...payloadData
       } = event.payload || {};
@@ -345,7 +345,7 @@ export class FlowRunnerService implements OnDestroy {
       const finalContext = this.state.context();
 
       this.eventManager.emitWorkflowClosed(flow?.id, currentNode?.id, reason);
-      this.eventManager.emitWorkflowEvent("CLOSE", {
+      this.eventManager.emitWorkflowEvent('CLOSE', {
         ...finalContext,
         ...payloadData,
         reason,
@@ -367,12 +367,12 @@ export class FlowRunnerService implements OnDestroy {
 
       if (!currentFlow) {
         throw new FlowError(
-          "No active flow",
-          FLOW_ERROR_CODES.FLOW_START_FAILED
+          'No active flow',
+          FLOW_ERROR_CODES.FLOW_START_FAILED,
         );
       }
 
-      const subflowReturnTo = (subflow?.globals?.["returnTo"] ?? undefined) as
+      const subflowReturnTo = (subflow?.globals?.['returnTo'] ?? undefined) as
         | string
         | undefined;
       const targetReturnTo =
@@ -381,7 +381,7 @@ export class FlowRunnerService implements OnDestroy {
       this.stateManager.pushSubflow(
         currentFlow,
         targetReturnTo,
-        currentContext
+        currentContext,
       );
       this.stateManager.initializeSubflow(subflow!, {
         ...currentContext,
@@ -397,7 +397,7 @@ export class FlowRunnerService implements OnDestroy {
           `Start node '${targetStartNodeId}' not found in subflow '${
             subflow!.id
           }'`,
-          FLOW_ERROR_CODES.INVALID_NODE_ID
+          FLOW_ERROR_CODES.INVALID_NODE_ID,
         );
       }
 
@@ -407,14 +407,14 @@ export class FlowRunnerService implements OnDestroy {
       this.eventManager.emitSubflowStarted(
         subflow!,
         currentFlow.id,
-        targetReturnTo
+        targetReturnTo,
       );
       this.eventManager.emitNodeEnter(startNode, subflow!.id);
 
       if (this.modalManager.shouldOpenModal(startNode)) {
         const currentModal = this.modalsController.getCurrentMainModal();
         await this.modalManager.openModal(startNode, subflow!.id, {
-          type: "subflow",
+          type: 'subflow',
           parentModalId: currentModal?.id,
         });
       }
@@ -441,7 +441,7 @@ export class FlowRunnerService implements OnDestroy {
       this.stateManager.navigateToNode(targetNode);
 
       this.eventManager.emitNodeEnter(targetNode, flow!.id, current!.id);
-      this.eventManager.emitWorkflowEvent("NEXT_SUBFLOW", {
+      this.eventManager.emitWorkflowEvent('NEXT_SUBFLOW', {
         from: current!.id,
         to: targetNode.id,
         targetNodeId: targetNode.id,
@@ -452,7 +452,7 @@ export class FlowRunnerService implements OnDestroy {
       if (this.modalManager.shouldOpenModal(targetNode)) {
         const mainModal = this.modalsController.getCurrentMainModal();
         await this.modalManager.openModal(targetNode, flow!.id, {
-          type: "subflow",
+          type: 'subflow',
           parentModalId: mainModal?.id,
         });
       }
@@ -479,9 +479,9 @@ export class FlowRunnerService implements OnDestroy {
       this.eventManager.emitNodeEnter(
         previousNode,
         flow!.id,
-        history[history.length - 1].id
+        history[history.length - 1].id,
       );
-      this.eventManager.emitWorkflowEvent("BACK_SUBFLOW", {
+      this.eventManager.emitWorkflowEvent('BACK_SUBFLOW', {
         from: history[history.length - 1].id,
         to: previousNode.id,
         targetNodeId: previousNode.id,
@@ -492,7 +492,7 @@ export class FlowRunnerService implements OnDestroy {
       if (this.modalManager.shouldOpenModal(previousNode)) {
         const mainModal = this.modalsController.getCurrentMainModal();
         await this.modalManager.openModal(previousNode, flow!.id, {
-          type: "subflow",
+          type: 'subflow',
           parentModalId: mainModal?.id,
         });
       }
@@ -503,7 +503,7 @@ export class FlowRunnerService implements OnDestroy {
       if (subflowStack.length === 0) return;
 
       const {
-        reason = "completed",
+        reason = 'completed',
         context: contextUpdates,
         ...payloadData
       } = event.payload || {};
@@ -521,7 +521,7 @@ export class FlowRunnerService implements OnDestroy {
       if (resolvedReturnId) {
         returnNode = parentFlow.nodes[resolvedReturnId];
         if (!returnNode) {
-          console.warn("Return node not found, falling back to flow start", {
+          console.log('Return node not found, falling back to flow start', {
             flowId: parentFlow.id,
             requestedReturnTo: resolvedReturnId,
           });
@@ -539,7 +539,7 @@ export class FlowRunnerService implements OnDestroy {
         this.stateManager.addToHistory(returnNode);
         this.eventManager.emitNodeEnter(returnNode, parentFlow.id);
       } else {
-        console.warn("Unable to resolve return node after subflow", {
+        console.log('Unable to resolve return node after subflow', {
           flowId: parentFlow.id,
           returnTo,
           fallbackReturnId,
@@ -555,9 +555,9 @@ export class FlowRunnerService implements OnDestroy {
       this.eventManager.emitSubflowClosed(
         currentSubflow?.id,
         parentFlow.id,
-        resolvedReturnId ?? "",
+        resolvedReturnId ?? '',
         reason,
-        eventPayload
+        eventPayload,
       );
       await this.modalsController.closeSubflowModal();
     },
@@ -566,8 +566,8 @@ export class FlowRunnerService implements OnDestroy {
       const { targetNodeId, context: contextUpdates } = event.payload || {};
       if (!targetNodeId) {
         throw new FlowError(
-          "Target node required",
-          FLOW_ERROR_CODES.INVALID_NODE_ID
+          'Target node required',
+          FLOW_ERROR_CODES.INVALID_NODE_ID,
         );
       }
 
@@ -598,8 +598,8 @@ export class FlowRunnerService implements OnDestroy {
 
       if (!this.state.flow()) {
         throw new FlowError(
-          "No flow to resume",
-          FLOW_ERROR_CODES.FLOW_START_FAILED
+          'No flow to resume',
+          FLOW_ERROR_CODES.FLOW_START_FAILED,
         );
       }
 
@@ -608,7 +608,7 @@ export class FlowRunnerService implements OnDestroy {
       }
 
       this.stateManager.startWorkflow();
-      this.eventManager.emitWorkflowEvent("RESUME", {
+      this.eventManager.emitWorkflowEvent('RESUME', {
         resumedAt: nodeId || this.state.currentNode()?.id,
         context: { ...this.state.context() },
       });
@@ -619,8 +619,8 @@ export class FlowRunnerService implements OnDestroy {
 
       if (!this.state.flow()) {
         throw new FlowError(
-          "No flow to resume",
-          FLOW_ERROR_CODES.FLOW_START_FAILED
+          'No flow to resume',
+          FLOW_ERROR_CODES.FLOW_START_FAILED,
         );
       }
 
@@ -629,7 +629,7 @@ export class FlowRunnerService implements OnDestroy {
       }
 
       this.stateManager.startWorkflow();
-      this.eventManager.emitWorkflowEvent("FLOW_SYNC", {
+      this.eventManager.emitWorkflowEvent('FLOW_SYNC', {
         resumedAt: nodeId || this.state.currentNode()?.id,
         context: { ...this.state.context() },
       });
@@ -637,7 +637,7 @@ export class FlowRunnerService implements OnDestroy {
 
     handleReset: async (event: FlowEvent): Promise<void> => {
       this.stateManager.reset();
-      this.eventManager.emitWorkflowClosed("reset", null, "reset");
+      this.eventManager.emitWorkflowClosed('reset', null, 'reset');
     },
 
     handleError: (event: FlowEvent): void => {
@@ -703,7 +703,7 @@ export class FlowRunnerService implements OnDestroy {
       const edges = this.navigation.getValidEdges(
         nodeId,
         flow,
-        this.state.context()
+        this.state.context(),
       );
       return edges.length > 0 ? edges[0].target : null;
     },
@@ -711,22 +711,22 @@ export class FlowRunnerService implements OnDestroy {
     getValidEdges: (
       nodeId: string,
       flow: Flow,
-      context: FlowContext
+      context: FlowContext,
     ): FlowEdge[] => {
       const outgoing = flow.edges.filter((e) => e.source === nodeId);
-      console.log("outgoing", outgoing);
+      console.log('outgoing', outgoing);
       const isEdgeValid = outgoing.filter((e) =>
-        this.navigation.isEdgeValid(e, context)
+        this.navigation.isEdgeValid(e, context),
       );
       return isEdgeValid;
     },
 
     isEdgeValid: (edge: FlowEdge, context: FlowContext): boolean => {
-      if (!edge.condition || edge.condition === "true") return true;
+      if (!edge.condition || edge.condition === 'true') return true;
 
       try {
-        console.log("Edge condition:", edge.condition);
-        console.log("Context:", context);
+        console.log('Edge condition:', edge.condition);
+        console.log('Context:', context);
         return this.navigation.evaluateCondition(edge.condition, context);
       } catch {
         return false;
@@ -735,9 +735,9 @@ export class FlowRunnerService implements OnDestroy {
 
     evaluateCondition: (
       condition: string | EdgeCondition,
-      context: FlowContext
+      context: FlowContext,
     ): boolean => {
-      if (typeof condition === "object") {
+      if (typeof condition === 'object') {
         return this.navigation.evaluateObjectCondition(condition, context);
       }
       return this.navigation.evaluateStringCondition(condition, context);
@@ -745,27 +745,27 @@ export class FlowRunnerService implements OnDestroy {
 
     evaluateObjectCondition: (
       condition: EdgeCondition,
-      context: FlowContext
+      context: FlowContext,
     ): boolean => {
       const { field, operator, value } = condition;
       const fieldValue = context[field];
 
       switch (operator) {
-        case "==":
+        case '==':
           return fieldValue == value;
-        case "===":
+        case '===':
           return fieldValue === value;
-        case "!=":
+        case '!=':
           return fieldValue != value;
-        case "!==":
+        case '!==':
           return fieldValue !== value;
-        case ">":
+        case '>':
           return Number(fieldValue) > Number(value);
-        case ">=":
+        case '>=':
           return Number(fieldValue) >= Number(value);
-        case "<":
+        case '<':
           return Number(fieldValue) < Number(value);
-        case "<=":
+        case '<=':
           return Number(fieldValue) <= Number(value);
         default:
           return false;
@@ -774,12 +774,12 @@ export class FlowRunnerService implements OnDestroy {
 
     evaluateStringCondition: (
       condition: string,
-      context: FlowContext
+      context: FlowContext,
     ): boolean => {
       try {
         const func = new Function(
           ...Object.keys(context),
-          `return ${condition};`
+          `return ${condition};`,
         );
         return func(...Object.values(context));
       } catch {
@@ -838,7 +838,7 @@ export class FlowRunnerService implements OnDestroy {
     navigateToNode: (node: FlowNode): void => {
       this.state.currentNode.set(node);
       this.state.history.update((h) => [...h, node]);
-      if (node.type === "task") {
+      if (node.type === 'task') {
         this.state.lastTask.set(node);
       }
     },
@@ -850,7 +850,7 @@ export class FlowRunnerService implements OnDestroy {
     },
 
     updateContext: (updates: FlowContext): void => {
-      console.log("Updating context:", updates);
+      console.log('Updating context:', updates);
       this.state.context.update((ctx) => ({ ...ctx, ...updates }));
     },
 
@@ -890,18 +890,18 @@ export class FlowRunnerService implements OnDestroy {
         return false;
       }
 
-      const showConfig = node.meta?.display?.showOn ?? "all";
-      if (showConfig === "none") {
+      const showConfig = node.meta?.display?.showOn ?? 'all';
+      if (showConfig === 'none') {
         return false;
       }
 
-      const target = showConfig ?? "all";
+      const target = showConfig ?? 'all';
       const isMobile = this.modalManager.isMobile();
 
       const isCompatible =
-        target === "all" ||
-        (target === "mobile" && isMobile) ||
-        (target === "tablet+" && !isMobile);
+        target === 'all' ||
+        (target === 'mobile' && isMobile) ||
+        (target === 'tablet+' && !isMobile);
 
       if (!isCompatible) {
         return false;
@@ -914,24 +914,24 @@ export class FlowRunnerService implements OnDestroy {
       return Boolean(
         (node.config?.page &&
           this.nodeComponentRegistry.has(node.config?.page)) ||
-          (node.type && this.nodeComponentRegistry.has(node.type))
+          (node.type && this.nodeComponentRegistry.has(node.type)),
       );
     },
 
     isMobile: (): boolean => {
       return (
-        typeof window !== "undefined" &&
-        window.matchMedia("(max-width: 767.98px)").matches
+        typeof window !== 'undefined' &&
+        window.matchMedia('(max-width: 767.98px)').matches
       );
     },
 
     handleTransition: async (
       node: FlowNode,
       flowId: string,
-      action: "START" | "NEXT" | "BACK",
-      source: string
+      action: 'START' | 'NEXT' | 'BACK',
+      source: string,
     ): Promise<void> => {
-      console.log("handleTransition called with:", {
+      console.log('handleTransition called with:', {
         node,
         flowId,
         action,
@@ -939,39 +939,39 @@ export class FlowRunnerService implements OnDestroy {
       });
       let isNested = false;
 
-      if (action === "BACK") {
-        console.log("Action is BACK, closing main modal");
+      if (action === 'BACK') {
+        console.log('Action is BACK, closing main modal');
         await this.modalsController.closeMainModal();
       }
 
       if (this.modalManager.isMobile()) {
-        console.log("Device is mobile");
+        console.log('Device is mobile');
 
         console.log(
-          "Node is checkpoint:",
-          this.modalManager.isCheckpoint(node)
+          'Node is checkpoint:',
+          this.modalManager.isCheckpoint(node),
         );
         console.log(
-          "Node is sticky root checkpoint:",
-          node.meta?.display?.stickyRootOnMobile
+          'Node is sticky root checkpoint:',
+          node.meta?.display?.stickyRootOnMobile,
         );
         console.log(
-          "State stickyRootCheckpointId:",
-          this.state.stickyRootCheckpointId()
+          'State stickyRootCheckpointId:',
+          this.state.stickyRootCheckpointId(),
         );
 
         if (
           this.modalManager.isCheckpoint(node) &&
           node.meta?.display?.stickyRootOnMobile
         ) {
-          console.log("Node is sticky root checkpoint:", node.id);
+          console.log('Node is sticky root checkpoint:', node.id);
           this.state.stickyRootCheckpointId.set(node.id);
           await this.modalsController.closeAllModals();
         } else if (this.state.stickyRootCheckpointId()) {
           const stickyId = this.state.stickyRootCheckpointId()!;
           const sticky = this.state.flow()?.nodes[stickyId];
           const until = sticky?.meta?.display?.rootKeepsChildrenUntil;
-          console.log("Processing sticky root checkpoint:", {
+          console.log('Processing sticky root checkpoint:', {
             stickyId,
             until,
             currentNodeId: node.id,
@@ -979,47 +979,47 @@ export class FlowRunnerService implements OnDestroy {
 
           if (until && node.id === until) {
             console.log(
-              "Reached until node, updating sticky checkpoint to:",
-              node.id
+              'Reached until node, updating sticky checkpoint to:',
+              node.id,
             );
             this.state.stickyRootCheckpointId.set(node.id);
             await this.modalsController.closeAllModals();
           } else {
-            console.log("Handling nested modal navigation");
+            console.log('Handling nested modal navigation');
             await this.modalsController.closeNestedModal();
             isNested = true;
           }
         }
       } else {
-        console.log("Device is desktop, closing main modal");
+        console.log('Device is desktop, closing main modal');
         await this.modalsController.closeMainModal();
       }
 
       if (!this.modalManager.shouldOpenModal(node)) {
-        console.log("Modal should not open for node:", node.id);
+        console.log('Modal should not open for node:', node.id);
         return;
       }
 
-      console.log("Opening new modal:", {
+      console.log('Opening new modal:', {
         nodeId: node.id,
         flowId,
-        modalType: isNested ? "nested" : "main",
+        modalType: isNested ? 'nested' : 'main',
       });
 
       await this.modalManager.openModal(node, flowId, {
-        type: isNested ? "nested" : "main",
+        type: isNested ? 'nested' : 'main',
       });
-      console.log("Modal opened successfully");
+      console.log('Modal opened successfully');
     },
 
     isCheckpoint: (node: FlowNode): boolean => {
-      return node.tags?.includes("checkpoint") || false;
+      return node.tags?.includes('checkpoint') || false;
     },
 
     openModal: async <T = any>(
       node: FlowNode,
       flowId: string,
-      options?: Partial<FlowModalConfig>
+      options?: Partial<FlowModalConfig>,
     ): Promise<ModalResult<T>> => {
       const existing = this.modalsController.getModalsByFlow(flowId);
       if (existing.some((m) => m.nodeId === node.id)) {
@@ -1041,8 +1041,8 @@ export class FlowRunnerService implements OnDestroy {
     getComponent: async (node: FlowNode): Promise<Type<any>> => {
       if (!node) {
         throw new FlowError(
-          "Node required",
-          FLOW_ERROR_CODES.COMPONENT_NOT_FOUND
+          'Node required',
+          FLOW_ERROR_CODES.COMPONENT_NOT_FOUND,
         );
       }
 
@@ -1060,7 +1060,7 @@ export class FlowRunnerService implements OnDestroy {
       throw new FlowError(
         `No component for node '${node.id}'`,
         FLOW_ERROR_CODES.COMPONENT_NOT_FOUND,
-        { nodeId: node.id, page: node.config?.page, kind: node.type }
+        { nodeId: node.id, page: node.config?.page, kind: node.type },
       );
     },
   };
@@ -1070,17 +1070,17 @@ export class FlowRunnerService implements OnDestroy {
       this.events.next({
         command,
         payload,
-        meta: { source: "flow-runner", ts: Date.now() },
+        meta: { source: 'flow-runner', ts: Date.now() },
       });
     },
 
     emitNodeEnter: (
       node: FlowNode,
       flowId: string,
-      previousId?: string
+      previousId?: string,
     ): void => {
       this.telemetry.next({
-        type: "node.enter",
+        type: 'node.enter',
         flowId,
         nodeId: node.id,
         timestamp: Date.now(),
@@ -1094,12 +1094,12 @@ export class FlowRunnerService implements OnDestroy {
 
     emitEdgeTaken: (source: string, target: string, flow: Flow): void => {
       const edge = flow.edges.find(
-        (e) => e.source === source && e.target === target
+        (e) => e.source === source && e.target === target,
       );
       if (!edge) return;
 
       this.telemetry.next({
-        type: "edge.taken",
+        type: 'edge.taken',
         flowId: flow.id,
         timestamp: Date.now(),
         edge: {
@@ -1113,12 +1113,12 @@ export class FlowRunnerService implements OnDestroy {
     emitSubflowStarted: (
       subflow: Flow,
       parentFlowId: string,
-      returnTo?: string
+      returnTo?: string,
     ): void => {
       const ts = Date.now();
 
       this.telemetry.next({
-        type: "subflow.started",
+        type: 'subflow.started',
         flowId: subflow.id,
         timestamp: ts,
         data: {
@@ -1129,14 +1129,14 @@ export class FlowRunnerService implements OnDestroy {
       });
 
       this.events.next({
-        command: "START_SUBFLOW",
+        command: 'START_SUBFLOW',
         payload: {
           subflowId: subflow.id,
           parentFlowId,
           returnTo,
           timestamp: ts,
         },
-        meta: { source: "flow-runner", ts },
+        meta: { source: 'flow-runner', ts },
       });
     },
 
@@ -1145,13 +1145,13 @@ export class FlowRunnerService implements OnDestroy {
       parentFlowId: string,
       returnTo: string,
       reason: string,
-      details?: Record<string, any>
+      details?: Record<string, any>,
     ): void => {
       const ts = Date.now();
 
       this.telemetry.next({
-        type: "subflow.closed",
-        flowId: subflowId || "unknown",
+        type: 'subflow.closed',
+        flowId: subflowId || 'unknown',
         timestamp: ts,
         data: {
           reason,
@@ -1164,7 +1164,7 @@ export class FlowRunnerService implements OnDestroy {
       });
 
       this.events.next({
-        command: "CLOSE_SUBFLOW",
+        command: 'CLOSE_SUBFLOW',
         payload: {
           ...(details || {}),
           reason,
@@ -1173,18 +1173,18 @@ export class FlowRunnerService implements OnDestroy {
           returnTo,
           timestamp: ts,
         },
-        meta: { source: "flow-runner", ts },
+        meta: { source: 'flow-runner', ts },
       });
     },
 
     emitWorkflowClosed: (
       flowId?: string,
       nodeId?: string | null,
-      reason?: string
+      reason?: string,
     ): void => {
       this.telemetry.next({
-        type: "flow.closed",
-        flowId: flowId || "unknown",
+        type: 'flow.closed',
+        flowId: flowId || 'unknown',
         nodeId: nodeId ?? undefined,
         timestamp: Date.now(),
         data: { reason, finalNodeId: nodeId },
@@ -1196,9 +1196,9 @@ export class FlowRunnerService implements OnDestroy {
       const node = this.state.currentNode();
 
       this.telemetry.next({
-        type: "flow.error",
-        flowId: flow?.id || "unknown",
-        nodeId: node?.id || "unknown",
+        type: 'flow.error',
+        flowId: flow?.id || 'unknown',
+        nodeId: node?.id || 'unknown',
         timestamp: Date.now(),
         data: {
           errorName: error.name,
@@ -1214,8 +1214,8 @@ export class FlowRunnerService implements OnDestroy {
     validateFlow: (flow?: Flow | null): void => {
       if (!flow) {
         throw new FlowError(
-          "Flow is required",
-          FLOW_ERROR_CODES.FLOW_START_FAILED
+          'Flow is required',
+          FLOW_ERROR_CODES.FLOW_START_FAILED,
         );
       }
     },
@@ -1223,9 +1223,9 @@ export class FlowRunnerService implements OnDestroy {
     validateNode: (flow: Flow, nodeId?: string | null): FlowNode => {
       if (!nodeId) {
         throw new FlowError(
-          "Target node required",
+          'Target node required',
           FLOW_ERROR_CODES.INVALID_NODE_ID,
-          { flowId: flow.id }
+          { flowId: flow.id },
         );
       }
 
@@ -1234,7 +1234,7 @@ export class FlowRunnerService implements OnDestroy {
         throw new FlowError(
           `Node '${nodeId}' not found in flow '${flow.id}'`,
           FLOW_ERROR_CODES.NODE_NOT_FOUND,
-          { flowId: flow.id, nodeId }
+          { flowId: flow.id, nodeId },
         );
       }
 
@@ -1243,12 +1243,12 @@ export class FlowRunnerService implements OnDestroy {
 
     canNavigate: (current: FlowNode | null, flow: Flow | null): boolean => {
       if (!flow) {
-        console.warn("Attempted navigation without active flow");
+        console.log('Attempted navigation without active flow');
         return false;
       }
 
       if (!current) {
-        console.warn("Attempted navigation without current node", {
+        console.log('Attempted navigation without current node', {
           flowId: flow.id,
         });
         return false;
@@ -1259,12 +1259,12 @@ export class FlowRunnerService implements OnDestroy {
 
     canGoBack: (history: FlowNode[], flow: Flow | null): boolean => {
       if (!flow) {
-        console.warn("Attempted backward navigation without active flow");
+        console.log('Attempted backward navigation without active flow');
         return false;
       }
 
       if (history.length <= 1) {
-        console.warn("Insufficient history for backward navigation", {
+        console.log('Insufficient history for backward navigation', {
           flowId: flow.id,
           historyLength: history.length,
         });

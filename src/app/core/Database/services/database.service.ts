@@ -150,7 +150,7 @@ export class DatabaseService {
         } catch (replicationError: any) {
           // Don't fail database initialization if replications fail
           // This allows offline-first operation
-          console.warn(
+          console.log(
             '⚠️ [NewDatabase] Replication initialization failed (may be offline):',
             replicationError.message,
           );
@@ -264,5 +264,31 @@ export class DatabaseService {
    */
   onPrimaryRecovery(callback: () => void | Promise<void>): () => void {
     return this.replicationManager.onPrimaryRecovery(callback);
+  }
+
+  /**
+   * Stop all replications gracefully (when both servers are down)
+   * Does not clear replication states, allowing manual restart
+   */
+  async stopAllReplicationsGracefully(): Promise<void> {
+    return this.replicationManager.stopAllReplicationsGracefully();
+  }
+
+  /**
+   * Check if both primary and secondary servers are down
+   */
+  async areBothServersDown(): Promise<boolean> {
+    return this.replicationManager.checkBothServersDown();
+  }
+
+  /**
+   * Manually start replications based on server availability
+   * Returns object with success status and message
+   */
+  async startReplicationsManually(): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return this.replicationManager.startReplicationsManually();
   }
 }

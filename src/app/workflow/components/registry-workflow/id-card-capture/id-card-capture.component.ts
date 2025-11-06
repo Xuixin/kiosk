@@ -1,4 +1,4 @@
-import { CommonModule } from "@angular/common";
+import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectorRef,
@@ -7,35 +7,35 @@ import {
   inject,
   OnDestroy,
   ViewChild,
-} from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { IonicModule } from "@ionic/angular";
-import { ButtonModule } from "primeng/button";
-import { BaseFlowController } from "../../../base-flow-controller.component";
-import { RegistryContextHelper } from "../../../helpers/registry-context.helper";
-import { CameraHandlerService } from "../../../services/camera-handler.service";
-import { CanvasService } from "../../../services/canvas.service";
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { IonicModule } from '@ionic/angular';
+import { ButtonModule } from 'primeng/button';
+import { BaseFlowController } from '../../../base-flow-controller.component';
+import { RegistryContextHelper } from '../../../helpers/registry-context.helper';
+import { CameraHandlerService } from '../../../services/camera-handler.service';
+import { CanvasService } from '../../../services/canvas.service';
 
 @Component({
-  selector: "app-id-card-capture",
+  selector: 'app-id-card-capture',
   standalone: true,
   imports: [CommonModule, FormsModule, IonicModule, ButtonModule],
-  templateUrl: "./id-card-capture.component.html",
+  templateUrl: './id-card-capture.component.html',
 })
 export class IdCardCaptureComponent
   extends BaseFlowController
   implements AfterViewInit, OnDestroy
 {
   static {
-    console.log("[IdCardCaptureComponent] Class loaded");
+    console.log('[IdCardCaptureComponent] Class loaded');
   }
-  @ViewChild("videoElement") videoElement!: ElementRef<HTMLVideoElement>;
-  @ViewChild("cameraCanvas") cameraCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('videoElement') videoElement!: ElementRef<HTMLVideoElement>;
+  @ViewChild('cameraCanvas') cameraCanvas!: ElementRef<HTMLCanvasElement>;
 
   // State
   isCameraLoading = false;
-  errorMessage = "";
-  capturedImage = "";
+  errorMessage = '';
+  capturedImage = '';
   cameras: Array<{ id: string; label: string }> = [];
   currentCameraIndex = 0;
   isFrontCamera = false;
@@ -49,10 +49,10 @@ export class IdCardCaptureComponent
 
   constructor(
     private canvasService: CanvasService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) {
     super();
-    console.log("[IdCardCaptureComponent] Constructor called successfully");
+    console.log('[IdCardCaptureComponent] Constructor called successfully');
   }
 
   ngAfterViewInit() {
@@ -65,7 +65,7 @@ export class IdCardCaptureComponent
       const registryContext = this.executionContext() as any;
       const existingFile = RegistryContextHelper.getFileByCategory(
         registryContext,
-        "id-card"
+        'id-card',
       );
 
       if (existingFile?.file_blob) {
@@ -80,13 +80,13 @@ export class IdCardCaptureComponent
 
       // เช็ค browser support
       if (!this.cameraHandler.isSupported()) {
-        console.warn("[IdCardCaptureComponent] Camera API not available");
-        this.showError("เบราว์เซอร์ของคุณไม่รองรับการใช้กล้อง");
+        console.log('[IdCardCaptureComponent] Camera API not available');
+        this.showError('เบราว์เซอร์ของคุณไม่รองรับการใช้กล้อง');
         return;
       }
 
       // สร้าง capture canvas
-      this.captureCanvas = document.createElement("canvas");
+      this.captureCanvas = document.createElement('canvas');
 
       // ดึงรายการกล้อง
       this.cameras = await this.cameraHandler.getCameras();
@@ -96,10 +96,10 @@ export class IdCardCaptureComponent
     } catch (error: any) {
       // Handle camera errors
       console.error(
-        "[IdCardCaptureComponent] Camera initialization error:",
-        error
+        '[IdCardCaptureComponent] Camera initialization error:',
+        error,
       );
-      this.showError("ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง");
+      this.showError('ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง');
     }
   }
 
@@ -138,7 +138,7 @@ export class IdCardCaptureComponent
       !this.videoElement?.nativeElement ||
       !this.cameraCanvas?.nativeElement
     ) {
-      throw new Error("Elements not available after waiting");
+      throw new Error('Elements not available after waiting');
     }
   }
 
@@ -152,22 +152,22 @@ export class IdCardCaptureComponent
   private async startCamera(): Promise<void> {
     try {
       this.isCameraLoading = true;
-      this.errorMessage = "";
+      this.errorMessage = '';
       this.cdr.detectChanges();
 
       // ตรวจสอบ elements
       if (!this.videoElement?.nativeElement) {
-        throw new Error("Video element not found");
+        throw new Error('Video element not found');
       }
 
       // เปิดกล้อง
-      const facingMode = this.currentCameraIndex === 0 ? "environment" : "user";
+      const facingMode = this.currentCameraIndex === 0 ? 'environment' : 'user';
       const stream = await this.cameraHandler.startCamera(facingMode);
 
       // ตรวจจับประเภทกล้อง
       this.isFrontCamera = await this.cameraHandler.detectFrontCamera(
         stream,
-        this.cameras.length
+        this.cameras.length,
       );
 
       // Set stream
@@ -183,10 +183,10 @@ export class IdCardCaptureComponent
       this.cdr.detectChanges();
     } catch (error: any) {
       // Handle camera errors
-      console.error("[IdCardCaptureComponent] Start camera error:", error);
+      console.error('[IdCardCaptureComponent] Start camera error:', error);
       this.isCameraLoading = false;
       this.cdr.detectChanges();
-      this.showError("ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง");
+      this.showError('ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง');
       throw error;
     }
   }
@@ -210,7 +210,7 @@ export class IdCardCaptureComponent
       video.onerror = reject;
 
       // Timeout
-      setTimeout(() => reject(new Error("Video load timeout")), 10000);
+      setTimeout(() => reject(new Error('Video load timeout')), 10000);
     });
   }
 
@@ -242,7 +242,7 @@ export class IdCardCaptureComponent
             0,
             0,
             canvas.width,
-            canvas.height
+            canvas.height,
           );
 
           // วาดกรอบแนะนำ
@@ -254,7 +254,7 @@ export class IdCardCaptureComponent
 
       drawFrame();
     } catch (error) {
-      console.error("[IdCardCaptureComponent] Drawing error:", error);
+      console.error('[IdCardCaptureComponent] Drawing error:', error);
     }
   }
 
@@ -264,7 +264,7 @@ export class IdCardCaptureComponent
   private drawIdCardOverlay(
     ctx: CanvasRenderingContext2D,
     width: number,
-    height: number
+    height: number,
   ): void {
     const guideWidth = width * 0.8;
     const guideHeight = guideWidth * 0.63;
@@ -272,30 +272,30 @@ export class IdCardCaptureComponent
     const guideY = (height - guideHeight) / 2;
 
     // วาด overlay มืด
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, width, guideY);
     ctx.fillRect(
       0,
       guideY + guideHeight,
       width,
-      height - (guideY + guideHeight)
+      height - (guideY + guideHeight),
     );
     ctx.fillRect(0, guideY, guideX, guideHeight);
     ctx.fillRect(
       guideX + guideWidth,
       guideY,
       width - (guideX + guideWidth),
-      guideHeight
+      guideHeight,
     );
 
     // วาดกรอบสีขาว
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 3;
     ctx.strokeRect(guideX, guideY, guideWidth, guideHeight);
 
     // วาดมุมสีเขียว
     const cornerLength = 30;
-    ctx.strokeStyle = "#00ff00";
+    ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 4;
 
     // 4 มุม
@@ -324,10 +324,10 @@ export class IdCardCaptureComponent
     ctx.stroke();
 
     // ข้อความแนะนำ
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 18px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("วางบัตรประชาชนให้อยู่ในกรอบ", width / 2, guideY - 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('วางบัตรประชาชนให้อยู่ในกรอบ', width / 2, guideY - 20);
   }
 
   /**
@@ -342,15 +342,15 @@ export class IdCardCaptureComponent
         video,
         this.captureCanvas,
         this.isFrontCamera,
-        "image/jpeg",
-        0.9
+        'image/jpeg',
+        0.9,
       );
 
       this.cameraHandler.stopCamera();
       this.stopDrawing();
     } catch (error: any) {
-      console.error("[IdCardCaptureComponent] Capture error:", error);
-      this.showError("ไม่สามารถถ่ายภาพได้ กรุณาลองอีกครั้ง");
+      console.error('[IdCardCaptureComponent] Capture error:', error);
+      this.showError('ไม่สามารถถ่ายภาพได้ กรุณาลองอีกครั้ง');
     }
   }
 
@@ -358,7 +358,7 @@ export class IdCardCaptureComponent
    * ถ่ายใหม่
    */
   async retakePhoto(): Promise<void> {
-    this.capturedImage = "";
+    this.capturedImage = '';
 
     try {
       // รอให้ view พร้อม
@@ -366,13 +366,13 @@ export class IdCardCaptureComponent
 
       // เช็ค browser support
       if (!this.cameraHandler.isSupported()) {
-        this.showError("เบราว์เซอร์ของคุณไม่รองรับการใช้กล้อง");
+        this.showError('เบราว์เซอร์ของคุณไม่รองรับการใช้กล้อง');
         return;
       }
 
       // สร้าง capture canvas (ถ้ายังไม่มี)
       if (!this.captureCanvas) {
-        this.captureCanvas = document.createElement("canvas");
+        this.captureCanvas = document.createElement('canvas');
       }
 
       // ดึงรายการกล้อง (ถ้ายังไม่มี)
@@ -383,8 +383,8 @@ export class IdCardCaptureComponent
       // เปิดกล้อง
       await this.startCamera();
     } catch (error: any) {
-      console.error("[IdCardCaptureComponent] Retake error:", error);
-      this.showError("ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง");
+      console.error('[IdCardCaptureComponent] Retake error:', error);
+      this.showError('ไม่สามารถเปิดกล้องได้ กรุณาลองอีกครั้ง');
     }
   }
 
@@ -401,7 +401,7 @@ export class IdCardCaptureComponent
       this.stopDrawing();
       await this.startCamera();
     } catch (error: any) {
-      console.error("[IdCardCaptureComponent] Switch camera error:", error);
+      console.error('[IdCardCaptureComponent] Switch camera error:', error);
     }
   }
 
@@ -413,14 +413,14 @@ export class IdCardCaptureComponent
 
     try {
       // Convert base64 to Blob
-      const base64Data = this.capturedImage.split(",")[1];
+      const base64Data = this.capturedImage.split(',')[1];
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "image/jpeg" });
+      const blob = new Blob([byteArray], { type: 'image/jpeg' });
 
       // Get current context
       const ctx = this.executionContext() as any;
@@ -428,15 +428,15 @@ export class IdCardCaptureComponent
       // Add file to context
       const updatedCtx = await RegistryContextHelper.addFile(ctx, {
         file_blob: blob,
-        file_type: "image/jpeg",
-        file_category: "id-card",
+        file_type: 'image/jpeg',
+        file_category: 'id-card',
       });
 
       // ไปยัง node ถัดไป (user-data) พร้อม update context
       await this.next(updatedCtx);
     } catch (error: any) {
-      console.error("[IdCardCaptureComponent] Save error:", error);
-      this.showError("ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง");
+      console.error('[IdCardCaptureComponent] Save error:', error);
+      this.showError('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง');
     }
   }
 
@@ -453,7 +453,7 @@ export class IdCardCaptureComponent
         cancelled: true,
       });
     } catch (error: any) {
-      console.error("[IdCardCaptureComponent] Close error:", error);
+      console.error('[IdCardCaptureComponent] Close error:', error);
     }
   }
 
@@ -485,9 +485,9 @@ export class IdCardCaptureComponent
 
   async viewSummary(): Promise<void> {
     try {
-      await this.jumpTo("summary");
+      await this.jumpTo('summary');
     } catch (error) {
-      console.error("[IdCardCaptureComponent] Error in viewSummary:", error);
+      console.error('[IdCardCaptureComponent] Error in viewSummary:', error);
     }
   }
 }

@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { DatabaseService } from './core/Database/services/database.service';
 import { ReplicationStateMonitorService } from './core/Database/replication/services/replication-state-monitor.service';
 import { ClientHealthService } from './core/Database/services/client-health.service';
+import { ReplicationCoordinatorService } from './core/Database/services/replication-coordinator.service';
 import 'zone.js/plugins/zone-patch-rxjs';
 @Component({
   selector: 'app-root',
@@ -16,15 +17,14 @@ export class AppComponent implements OnInit, OnDestroy {
     private replicationMonitorService: ReplicationStateMonitorService,
     // Inject ClientHealthService to initialize offline/online monitoring
     private clientHealthService: ClientHealthService,
-    
+    private replicationCoordinator: ReplicationCoordinatorService,
   ) {}
 
   async ngOnInit() {
     console.log('🚀 App component initialized');
 
     // Subscribe to primary recovery events from database service
-    // This replaces the old watcher approach - more efficient as it detects
-    // primary server recovery directly from replication data
+    // Delegate to coordinator for centralized handling
     this.databaseService.onPrimaryRecovery(async () => {
       console.log('📢 [AppComponent] Primary recovery event received');
       const currentState =
@@ -32,14 +32,16 @@ export class AppComponent implements OnInit, OnDestroy {
       const isOnSecondary = currentState.currentServer === 'secondary';
 
       if (isOnSecondary) {
-        console.log('✅ [AppComponent] Switching to primary server...');
-        await this.databaseService.switchToPrimary();
+        console.log(
+          '✅ [AppComponent] Delegating primary recovery to coordinator...',
+        );
+        await this.replicationCoordinator.handlePrimaryRecovery();
       }
     });
   }
 
   ngOnDestroy() {
-    // Stop replications
-    this.databaseService.stopReplication();
+    // Stop replications via coordinator
+    this.replicationCoordinator.handleAppDestroy();
   }
 }

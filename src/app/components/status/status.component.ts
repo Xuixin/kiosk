@@ -19,7 +19,7 @@ export class StatusComponent implements OnDestroy {
       this.isOnline = state;
 
       if (!state) {
-        console.warn('⚠️ server down → cancel replication here');
+        console.log('⚠️ server down → cancel replication here');
         // replicationState.cancel();
       } else {
         console.log('✅ server up → restart replication');

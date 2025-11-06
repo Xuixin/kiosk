@@ -1,9 +1,7 @@
 import { Injectable, inject, OnDestroy } from '@angular/core';
 import { Subscription, distinctUntilChanged, filter } from 'rxjs';
 import { NetworkStatusService } from './network-status.service';
-import { DatabaseService } from './database.service';
-import { environment } from 'src/environments/environment';
-import { checkGraphQLConnection } from '../replication/utils/connection.utils';
+import { ReplicationCoordinatorService } from './replication-coordinator.service';
 
 /**
  * Client Health Service
@@ -19,7 +17,9 @@ import { checkGraphQLConnection } from '../replication/utils/connection.utils';
 })
 export class ClientHealthService implements OnDestroy {
   private readonly networkStatus = inject(NetworkStatusService);
-  private readonly databaseService = inject(DatabaseService);
+  private readonly replicationCoordinator = inject(
+    ReplicationCoordinatorService,
+  );
   private networkSubscription?: Subscription;
   private isReplicationStopped = false; // Track if we stopped replication due to offline
 
@@ -60,98 +60,33 @@ export class ClientHealthService implements OnDestroy {
     if (!initialOnline) {
       // Wait a bit for DB to initialize if needed
       setTimeout(async () => {
-        if (this.databaseService.isInitialized()) {
-          console.log(
-            '⚠️ [ClientHealth] Started offline and DB is initialized, stopping replications...',
-          );
-          await this.handleOffline();
-        }
+        // Check if database is initialized via coordinator
+        await this.handleOffline();
       }, 2000); // Wait 2 seconds for DB initialization
     }
   }
 
   /**
    * Handle when network goes offline
-   * Stop all replications to prevent errors
+   * Delegate to ReplicationCoordinatorService
    */
   private async handleOffline(): Promise<void> {
     console.log(
-      '📴 [ClientHealth] Network is OFFLINE - stopping replications...',
+      '📴 [ClientHealth] Network is OFFLINE - delegating to coordinator...',
     );
 
-    if (!this.databaseService.isInitialized()) {
-      console.log(
-        '⏭️ [ClientHealth] Database not initialized, skipping replication stop',
-      );
-      return;
-    }
-
-    try {
-      // Get all replication states
-      const allStates = this.databaseService.getAllReplicationStates();
-      const replicationCount = allStates.size;
-
-      if (replicationCount === 0) {
-        console.log('ℹ️ [ClientHealth] No replications found to stop');
-        this.isReplicationStopped = false; // No replications to stop
-        return;
-      }
-
-      console.log(
-        `🛑 [ClientHealth] Stopping ${replicationCount} replication(s)...`,
-      );
-
-      // Cancel all replications directly (don't check active state)
-      // active$ only indicates if replication is currently running pull/push operations
-      // We need to cancel ALL replications when offline, regardless of active$ state
-      // because replication may be waiting for next pull/push cycle
-      const cancelPromises: Promise<void>[] = [];
-      for (const [identifier, state] of allStates.entries()) {
-        cancelPromises.push(
-          (async () => {
-            try {
-              // Always cancel - don't check active$ because replication may be waiting
-              await state.cancel();
-              console.log(
-                `✅ [ClientHealth] Cancelled replication: ${identifier}`,
-              );
-            } catch (error: any) {
-              // Ignore errors if replication is already cancelled or not started
-              console.warn(
-                `⚠️ [ClientHealth] Error cancelling ${identifier} (may already be stopped):`,
-                error.message,
-              );
-            }
-          })(),
-        );
-      }
-
-      await Promise.all(cancelPromises);
-      this.isReplicationStopped = true;
-      console.log('✅ [ClientHealth] All replications stopped (offline mode)');
-    } catch (error: any) {
-      console.error(
-        '❌ [ClientHealth] Error stopping replications:',
-        error.message,
-      );
-    }
+    await this.replicationCoordinator.handleNetworkOffline();
+    this.isReplicationStopped = true;
   }
 
   /**
    * Handle when network comes back online
-   * Reinitialize replications
+   * Delegate to ReplicationCoordinatorService
    */
   private async handleOnline(): Promise<void> {
     console.log(
-      '📶 [ClientHealth] Network is ONLINE - reinitializing replications...',
+      '📶 [ClientHealth] Network is ONLINE - delegating to coordinator...',
     );
-
-    if (!this.databaseService.isInitialized()) {
-      console.log(
-        '⏭️ [ClientHealth] Database not initialized, skipping replication init',
-      );
-      return;
-    }
 
     // Only reinitialize if we actually stopped replication due to offline
     if (!this.isReplicationStopped) {
@@ -161,58 +96,8 @@ export class ClientHealthService implements OnDestroy {
       return;
     }
 
-    try {
-      // Wait a bit for network to stabilize
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Reinitialize replications completely
-      await this.databaseService.reinitializeReplications();
-
-      this.isReplicationStopped = false;
-    } catch (error: any) {
-      console.error(
-        '❌ [ClientHealth] Error reinitializing replications:',
-        error.message,
-      );
-      // Don't reset flag on error, so we can retry next time
-    }
-  }
-
-  /**
-   * Manually start replications based on server availability
-   */
-  private async manualStartReplications(): Promise<void> {
-    // Check which server is available
-    const primaryAvailable = await this.checkServer(environment.apiUrl);
-
-    if (primaryAvailable) {
-      console.log(
-        '🔄 [ClientHealth] Primary server available, starting primary replications...',
-      );
-      await this.databaseService.switchToPrimary();
-    } else {
-      const secondaryAvailable = await this.checkServer(
-        environment.apiSecondaryUrl || environment.apiUrl,
-      );
-      if (secondaryAvailable) {
-        console.log(
-          '🔄 [ClientHealth] Secondary server available, starting secondary replications...',
-        );
-        await this.databaseService.switchToSecondary();
-      } else {
-        console.error(
-          '❌ [ClientHealth] No server available, cannot start replications',
-        );
-      }
-    }
-  }
-
-  /**
-   * Check if server is reachable
-   * Uses shared connection utility
-   */
-  private async checkServer(url: string): Promise<boolean> {
-    return checkGraphQLConnection(url);
+    await this.replicationCoordinator.handleNetworkOnline();
+    this.isReplicationStopped = false;
   }
 
   ngOnDestroy(): void {

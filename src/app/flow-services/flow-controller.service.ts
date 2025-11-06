@@ -1,10 +1,10 @@
-import { Injectable, OnDestroy, computed, inject, signal } from "@angular/core";
-import { Subject, filter, firstValueFrom, map, takeUntil, tap } from "rxjs";
-import { Flow, FlowEvent, FlowNode } from "../types/flow.types";
-import { FlowContext, FlowError } from "../types/workflow-error";
-import { FlowRegistryService } from "./flow-registry.service";
-import { FlowRunnerService } from "./flow-runner.service";
-import { FlowStateManagerService } from "./flow-state-manager.service";
+import { Injectable, OnDestroy, computed, inject, signal } from '@angular/core';
+import { Subject, filter, firstValueFrom, map, takeUntil, tap } from 'rxjs';
+import { Flow, FlowEvent, FlowNode } from '../types/flow.types';
+import { FlowContext, FlowError } from '../types/workflow-error';
+import { FlowRegistryService } from './flow-registry.service';
+import { FlowRunnerService } from './flow-runner.service';
+import { FlowStateManagerService } from './flow-state-manager.service';
 
 /** Flow execution context type */
 export type WorkflowContext = Record<string, unknown>;
@@ -56,7 +56,7 @@ export interface FlowNavigationOptions {
  * Centralized Flow Controller Service
  */
 @Injectable({
-  providedIn: "root",
+  providedIn: 'root',
 })
 export class FlowControllerService implements OnDestroy {
   private readonly flowRunner = inject(FlowRunnerService);
@@ -119,12 +119,12 @@ export class FlowControllerService implements OnDestroy {
   async startWorkflow(
     flow: Flow,
     startNodeId?: string,
-    initialContext: WorkflowContext = {}
+    initialContext: WorkflowContext = {},
   ): Promise<FlowResult> {
     if (this._isActive()) {
       throw new FlowError(
-        "Cannot start workflow: another workflow is already active",
-        "WORKFLOW_ALREADY_ACTIVE"
+        'Cannot start workflow: another workflow is already active',
+        'WORKFLOW_ALREADY_ACTIVE',
       );
     }
 
@@ -144,25 +144,25 @@ export class FlowControllerService implements OnDestroy {
       // Create completion promise with timeout and correlation
       const completionPromise = firstValueFrom(
         this.flowRunner.events$.pipe(
-          tap((event) => console.log("Runner event:", event)),
+          tap((event) => console.log('Runner event:', event)),
           filter(
             (event: FlowEvent) =>
-              event.command === "CLOSE" &&
+              event.command === 'CLOSE' &&
               // Add basic correlation - could be enhanced with runId
-              this.currentFlow()?.id === flow.id
+              this.currentFlow()?.id === flow.id,
           ),
           map((event) => ({
             data: event.payload || {},
-            role: event.payload?.["role"] as string,
-            reason: event.payload?.["reason"] as string,
+            role: event.payload?.['role'] as string,
+            reason: event.payload?.['reason'] as string,
           })),
-          takeUntil(this._destroy$)
-        )
+          takeUntil(this._destroy$),
+        ),
       );
 
       // Start workflow execution
       this.flowRunner.dispatch({
-        command: "START",
+        command: 'START',
         payload: {
           flow,
           startNodeId,
@@ -175,7 +175,7 @@ export class FlowControllerService implements OnDestroy {
       this._error.set(error as Error);
       this._isActive.set(false);
 
-      throw this.enhanceError(error, "WORKFLOW_START_FAILED", {
+      throw this.enhanceError(error, 'WORKFLOW_START_FAILED', {
         flowId: flow.id,
       });
     }
@@ -186,13 +186,13 @@ export class FlowControllerService implements OnDestroy {
    */
   async reset(): Promise<void> {
     try {
-      this.flowRunner.dispatch({ command: "RESET" });
+      this.flowRunner.dispatch({ command: 'RESET' });
       this.stateManager.reset();
       this._isActive.set(false);
       this._error.set(null);
     } catch (error) {
       this._error.set(error as Error);
-      throw this.enhanceError(error, "RESET_FAILED");
+      throw this.enhanceError(error, 'RESET_FAILED');
     }
   }
 
@@ -201,11 +201,11 @@ export class FlowControllerService implements OnDestroy {
    */
   async closeWorkflow(
     finalData: WorkflowContext = {},
-    role?: string
+    role?: string,
   ): Promise<void> {
     try {
       this.flowRunner.dispatch({
-        command: "CLOSE",
+        command: 'CLOSE',
         payload: {
           ...(finalData ? { context: finalData } : {}),
           ...(role && { role }),
@@ -216,7 +216,7 @@ export class FlowControllerService implements OnDestroy {
       this._isActive.set(false);
     } catch (error) {
       this._error.set(error as Error);
-      throw this.enhanceError(error, "WORKFLOW_CLOSE_FAILED");
+      throw this.enhanceError(error, 'WORKFLOW_CLOSE_FAILED');
     }
   }
 
@@ -231,19 +231,19 @@ export class FlowControllerService implements OnDestroy {
         : undefined;
       if (this.isInSubflow()) {
         this.flowRunner.dispatch({
-          command: "NEXT_SUBFLOW",
+          command: 'NEXT_SUBFLOW',
           payload,
         });
       } else {
         this.flowRunner.dispatch({
-          command: "NEXT",
+          command: 'NEXT',
           payload,
         });
       }
 
       this.syncExecutionData(options.transitionData);
     } catch (error) {
-      this.handleNavigationError(error, "next");
+      this.handleNavigationError(error, 'next');
     }
   }
 
@@ -251,16 +251,16 @@ export class FlowControllerService implements OnDestroy {
    * Navigate to the previous step
    */
   back(): void {
-    this.validateNavigation("back", this.canNavigateBack());
+    this.validateNavigation('back', this.canNavigateBack());
 
     try {
       if (this.isInSubflow()) {
-        this.flowRunner.dispatch({ command: "BACK_SUBFLOW" });
+        this.flowRunner.dispatch({ command: 'BACK_SUBFLOW' });
       } else {
-        this.flowRunner.dispatch({ command: "BACK" });
+        this.flowRunner.dispatch({ command: 'BACK' });
       }
     } catch (error) {
-      this.handleNavigationError(error, "back");
+      this.handleNavigationError(error, 'back');
     }
   }
 
@@ -270,8 +270,8 @@ export class FlowControllerService implements OnDestroy {
   jumpTo(nodeId: string, options: FlowNavigationOptions = {}): void {
     if (!nodeId) {
       throw new FlowError(
-        "Node ID is required for jump navigation",
-        "INVALID_NODE_ID"
+        'Node ID is required for jump navigation',
+        'INVALID_NODE_ID',
       );
     }
 
@@ -282,17 +282,17 @@ export class FlowControllerService implements OnDestroy {
       };
 
       this.flowRunner.dispatch({
-        command: "JUMP_TO",
+        command: 'JUMP_TO',
         payload,
       });
 
       this.stateManager.transitionToNode(
         nodeId,
         undefined,
-        options.transitionData
+        options.transitionData,
       );
     } catch (error) {
-      this.handleNavigationError(error, "jumpTo");
+      this.handleNavigationError(error, 'jumpTo');
     }
   }
 
@@ -306,14 +306,14 @@ export class FlowControllerService implements OnDestroy {
   async startSubflow(
     subflowId: string,
     context: WorkflowContext = {},
-    startNodeId?: string
+    startNodeId?: string,
   ): Promise<FlowResult> {
     const subflow = this.flowRegistry.getSubflow(subflowId);
     if (!subflow) {
       throw new FlowError(
         `Subflow not found: ${subflowId}`,
-        "SUBFLOW_NOT_FOUND",
-        { subflowId }
+        'SUBFLOW_NOT_FOUND',
+        { subflowId },
       );
     }
 
@@ -321,19 +321,19 @@ export class FlowControllerService implements OnDestroy {
       // Create completion promise for this specific subflow
       const completionPromise = firstValueFrom(
         this.flowRunner.events$.pipe(
-          tap((event: FlowEvent) => console.log("Runner event:", event)),
-          filter((event: FlowEvent) => event.command === "CLOSE_SUBFLOW"),
+          tap((event: FlowEvent) => console.log('Runner event:', event)),
+          filter((event: FlowEvent) => event.command === 'CLOSE_SUBFLOW'),
           map(
             (event: FlowEvent): FlowResult => ({
               data: event.payload || {},
-              role: event.payload?.["role"],
-            })
-          )
-        )
+              role: event.payload?.['role'],
+            }),
+          ),
+        ),
       );
 
       this.flowRunner.dispatch({
-        command: "START_SUBFLOW",
+        command: 'START_SUBFLOW',
         payload: {
           subflow,
           returnTo: subflow.returnTo,
@@ -346,7 +346,7 @@ export class FlowControllerService implements OnDestroy {
     } catch (error) {
       // Log critical error for subflow start failures
 
-      throw this.enhanceError(error, "SUBFLOW_START_FAILED", { subflowId });
+      throw this.enhanceError(error, 'SUBFLOW_START_FAILED', { subflowId });
     }
   }
 
@@ -356,21 +356,21 @@ export class FlowControllerService implements OnDestroy {
   closeSubflow(returnData: WorkflowContext = {}, role?: string): void {
     if (!this.isInSubflow()) {
       throw new FlowError(
-        "Cannot close subflow: not currently in a subflow",
-        "NOT_IN_SUBFLOW"
+        'Cannot close subflow: not currently in a subflow',
+        'NOT_IN_SUBFLOW',
       );
     }
 
     try {
       this.flowRunner.dispatch({
-        command: "CLOSE_SUBFLOW",
+        command: 'CLOSE_SUBFLOW',
         payload: {
           ...(returnData ? { context: returnData } : {}),
           ...(role && { role }),
         },
       });
     } catch (error) {
-      this.handleNavigationError(error, "closeSubflow");
+      this.handleNavigationError(error, 'closeSubflow');
     }
   }
 
@@ -388,7 +388,7 @@ export class FlowControllerService implements OnDestroy {
       // State manager will be notified through events
     } catch (error) {
       this._error.set(error as Error);
-      throw this.enhanceError(error, "CONTEXT_UPDATE_FAILED");
+      throw this.enhanceError(error, 'CONTEXT_UPDATE_FAILED');
     }
   }
 
@@ -412,7 +412,7 @@ export class FlowControllerService implements OnDestroy {
    * Handle errors with enhanced context and recovery
    */
   handleError(error: Error, context?: WorkflowContext): void {
-    const enhancedError = this.enhanceError(error, "WORKFLOW_ERROR", context);
+    const enhancedError = this.enhanceError(error, 'WORKFLOW_ERROR', context);
     this._error.set(enhancedError);
 
     // Notify state manager for persistence
@@ -421,10 +421,10 @@ export class FlowControllerService implements OnDestroy {
     // Consider auto-recovery or controlled shutdown based on error type
     if (this.isRecoverableError(enhancedError)) {
       // Log and continue
-      console.warn("Recoverable workflow error:", enhancedError);
+      console.log('Recoverable workflow error:', enhancedError);
     } else {
       // Potentially reset the workflow for unrecoverable errors
-      console.error("Unrecoverable workflow error:", enhancedError);
+      console.error('Unrecoverable workflow error:', enhancedError);
     }
   }
 
@@ -452,8 +452,8 @@ export class FlowControllerService implements OnDestroy {
     if (!canNavigate) {
       throw new FlowError(
         `Cannot ${operation}: navigation not allowed`,
-        "NAVIGATION_NOT_ALLOWED",
-        { operation, currentNode: this.currentNode()?.id }
+        'NAVIGATION_NOT_ALLOWED',
+        { operation, currentNode: this.currentNode()?.id },
       );
     }
   }
@@ -471,7 +471,7 @@ export class FlowControllerService implements OnDestroy {
    * Handle navigation-specific errors
    */
   private handleNavigationError(error: unknown, operation: string): void {
-    const enhancedError = this.enhanceError(error, "NAVIGATION_FAILED", {
+    const enhancedError = this.enhanceError(error, 'NAVIGATION_FAILED', {
       operation,
       currentNode: this.currentNode()?.id,
     });
@@ -485,7 +485,7 @@ export class FlowControllerService implements OnDestroy {
   private enhanceError(
     error: unknown,
     code: string,
-    context?: WorkflowContext
+    context?: WorkflowContext,
   ): FlowError {
     if (error instanceof FlowError) {
       return error;
@@ -500,9 +500,9 @@ export class FlowControllerService implements OnDestroy {
    */
   private isRecoverableError(error: FlowError): boolean {
     const recoverableCodes = [
-      "NAVIGATION_NOT_ALLOWED",
-      "INVALID_NODE_ID",
-      "CONTEXT_UPDATE_FAILED",
+      'NAVIGATION_NOT_ALLOWED',
+      'INVALID_NODE_ID',
+      'CONTEXT_UPDATE_FAILED',
     ];
     return recoverableCodes.includes(error.code);
   }
