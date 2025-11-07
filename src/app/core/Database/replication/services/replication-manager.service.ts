@@ -221,6 +221,20 @@ export class ReplicationManagerService {
         );
       }
     }
+
+    const checkServerStatus = await this.checkServerStatus();
+    if (checkServerStatus === 'bothDown') {
+      console.warn(
+        '⚠️ [ReplicationManager] Both servers down, cannot initialize replications',
+      );
+      return;
+    }
+
+    if (checkServerStatus === 'primary') {
+      await this.startReplication('primary');
+    } else {
+      await this.startReplication('secondary');
+    }
   }
 
   /**

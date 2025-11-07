@@ -121,6 +121,7 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   async clickLog() {
+    console.log('clickLog');
     const deviceId = await this.identityService.getClientId();
     if (!deviceId) {
       return;
